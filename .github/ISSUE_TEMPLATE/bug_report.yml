@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible problem in Pokeidle Manager.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never attach cookies, tokens, browser profiles, SQLite databases, or raw logs that may contain authentication data. Redact account names and other personal information.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: List the steps that lead to the problem.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. See error...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Pokeidle Manager version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11
+    validations:
+      required: true
