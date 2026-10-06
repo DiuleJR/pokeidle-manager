@@ -1,46 +1,46 @@
-name: Bug report
-description: Report a reproducible problem in Pokeidle Manager.
-title: "[Bug]: "
+name: Relatar um problema
+description: Relate um problema reproduzível no Pokeidle Manager.
+title: '[Problema]: '
 body:
   - type: markdown
     attributes:
       value: |
-        Never attach cookies, tokens, browser profiles, SQLite databases, or raw logs that may contain authentication data. Redact account names and other personal information.
+        Nunca anexe cookies, tokens, perfis do navegador, bancos SQLite ou logs brutos que possam conter dados de autenticação. Oculte nomes de contas e outras informações pessoais.
   - type: textarea
     id: summary
     attributes:
-      label: What happened?
-      description: Describe the problem clearly.
+      label: O que aconteceu?
+      description: Descreva o problema com clareza.
     validations:
       required: true
   - type: textarea
     id: reproduce
     attributes:
-      label: Steps to reproduce
-      description: List the steps that lead to the problem.
+      label: Passos para reproduzir
+      description: Liste os passos que levam ao problema.
       placeholder: |
-        1. Open...
-        2. Select...
-        3. See error...
+        1. Abra...
+        2. Selecione...
+        3. Observe o erro...
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: What did you expect to happen?
+      label: O que você esperava que acontecesse?
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Pokeidle Manager version
-      placeholder: e.g. 0.1.0
+      label: Versão do Pokeidle Manager
+      placeholder: 'Ex.: 0.1.0'
     validations:
       required: true
   - type: input
     id: environment
     attributes:
-      label: Operating system
-      placeholder: e.g. Windows 11
+      label: Sistema operacional
+      placeholder: 'Ex.: Windows 11'
     validations:
       required: true

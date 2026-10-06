@@ -1,29 +1,29 @@
-name: Feature request
-description: Suggest an improvement for Pokeidle Manager.
-title: "[Feature]: "
+name: Sugerir uma melhoria
+description: Sugira uma melhoria para o Pokeidle Manager.
+title: '[Melhoria]: '
 body:
   - type: markdown
     attributes:
       value: |
-        Do not include cookies, tokens, browser profiles, SQLite databases, or raw logs containing authentication data.
+        Não inclua cookies, tokens, perfis do navegador, bancos SQLite ou logs brutos com dados de autenticação.
   - type: textarea
     id: problem
     attributes:
-      label: What problem would this solve?
-      description: Explain the use case or friction you encountered.
+      label: Que problema esta melhoria resolveria?
+      description: Explique o caso de uso ou a dificuldade encontrada.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: What would you like to happen?
-      description: Describe the behavior or improvement you have in mind.
+      label: O que você gostaria que acontecesse?
+      description: Descreva o comportamento ou a melhoria que você imaginou.
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-      description: Optional approaches or workarounds you have considered.
+      label: Alternativas consideradas
+      description: 'Opcional: informe outras abordagens ou soluções temporárias que você considerou.'
     validations:
       required: false

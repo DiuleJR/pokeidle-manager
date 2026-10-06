@@ -1,18 +1,18 @@
-# Contributing
+# Como contribuir
 
-Thanks for helping improve Pokeidle Manager. The source is maintained as the canonical community edition. A public issue tracker, pull-request host, and support channel will be linked here once their addresses are established.
+Obrigado por ajudar a melhorar o Pokeidle Manager. O código-fonte deste repositório é a edição comunitária oficial do projeto. Sugestões e relatos podem ser enviados pelas opções de Issues do GitHub.
 
-## Before proposing a change
+## Antes de propor uma alteração
 
-- Keep changes focused and explain user impact and any compatibility or data-migration effects.
-- Do not commit account databases, browser profiles, logs, cookies, tokens, screenshots with personal data, local environment files, or private recovery material.
-- Do not add game artwork, sprites, logos, or other third-party assets without documented redistribution permission. See [Assets](docs/ASSETS.md).
-- Preserve local-first behavior and clearly disclose any new external network request or collection of data.
-- Never expose the development mobile server or Vite helper to an untrusted network.
+- Mantenha as alterações focadas e explique o impacto para quem usa o aplicativo, incluindo efeitos sobre compatibilidade ou migração de dados.
+- Não envie bancos de dados de contas, perfis do navegador, logs, cookies, tokens, capturas de tela com dados pessoais, arquivos de ambiente local nem material privado de recuperação.
+- Não adicione artes, sprites, logotipos ou outros ativos de terceiros sem autorização documentada para redistribuição. Consulte [Ativos e ícones](docs/ASSETS.md).
+- Preserve o funcionamento local do aplicativo e informe claramente qualquer nova conexão externa ou coleta de dados.
+- Nunca exponha o servidor mobile de desenvolvimento ou o servidor auxiliar do Vite a uma rede não confiável.
 
-## Local checks
+## Verificações locais
 
-Use a supported Node.js/npm and Rust toolchain, then run:
+Use versões compatíveis do Node.js/npm e da cadeia de ferramentas Rust e execute:
 
 ```powershell
 npm ci
@@ -23,8 +23,8 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-For a packaged Windows Community build, use the repository's explicit community-build command and verify the resulting artifact locally.
+Para gerar uma versão comunitária empacotada para Windows, use o comando explícito de compilação comunitária do repositório e confira o artefato localmente.
 
-## Submitting
+## Envio de contribuições
 
-Once a public hosting location is configured, use its documented contribution workflow. Include tests or manual verification, note limitations, and keep commits free of generated build output and personal data. By submitting a contribution, you agree it is offered under the project license unless the maintainers document another arrangement.
+Use o fluxo de contribuição documentado neste repositório. Inclua testes ou verificações manuais, informe limitações e não inclua arquivos de compilação gerados nem dados pessoais nos commits. Ao enviar uma contribuição, você a disponibiliza sob a licença do projeto, salvo se os mantenedores documentarem outra condição.

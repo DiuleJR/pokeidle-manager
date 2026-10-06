@@ -1,12 +1,12 @@
-# Security policy
+# Política de segurança
 
-No dedicated security contact or supported release channel has been established yet. Do not send vulnerability details to an address found outside this repository, and do not include secrets or personal account data in public issues or logs. Maintainers should add a verified private reporting channel before publishing supported binaries.
+Ainda não há um contato dedicado de segurança nem um canal de lançamento com suporte estabelecido. Não envie detalhes de vulnerabilidades para endereços encontrados fora deste repositório e não inclua segredos ou dados pessoais de contas em Issues ou logs públicos. Antes de distribuir binários com suporte oficial, as pessoas mantenedoras devem adicionar um canal privado de comunicação verificado.
 
-For a report, include the affected version/commit, operating system, reproduction steps, and impact. Redact account names, browser cookies, tokens, database contents, and identifying network details. Please allow maintainers time to investigate and prepare a fix before public disclosure.
+Ao relatar um problema, informe a versão ou o commit afetado, o sistema operacional, os passos para reproduzi-lo e o impacto. Remova nomes de contas, cookies do navegador, tokens, conteúdo do banco de dados e detalhes de rede que possam identificar você. Dê tempo para que as pessoas mantenedoras investiguem e preparem uma correção antes da divulgação pública.
 
-## Safety notes
+## Avisos importantes
 
-- Browser profiles persist under the app-data directory and can contain authenticated session cookies. Treat that directory as credential-bearing data.
-- The optional mobile dashboard server is development-only and binds to loopback. Do not expose it to a LAN or the internet.
-- The optional ZeroTier development helper deliberately binds the Vite dev server to a selected ZeroTier interface. Anyone with network reachability to that interface may be able to reach the development UI; the Origin check is not authentication. Use only on a trusted network and stop it when finished.
-- Rust diagnostics are written to stderr through the tracing subscriber. The operating system or a launcher may capture them. Sanitization exists for some inspected protocol frames, but do not assume logs never contain sensitive information.
+- Os perfis do navegador são persistidos na pasta de dados do aplicativo e podem conter cookies de sessões autenticadas. Trate essa pasta como dado que contém credenciais.
+- O servidor opcional do painel mobile é apenas para desenvolvimento e escuta no endereço local (`loopback`). Não o exponha à rede local nem à internet.
+- O auxiliar de desenvolvimento ZeroTier opcional vincula deliberadamente o servidor de desenvolvimento do Vite a uma interface ZeroTier selecionada. Qualquer pessoa que alcance essa interface pela rede pode conseguir acessar a interface de desenvolvimento; a verificação de `Origin` não é autenticação. Use-o somente em uma rede confiável e encerre-o ao terminar.
+- Os diagnósticos do Rust são enviados a `stderr` pelo assinante do `tracing`. O sistema operacional ou um inicializador pode capturá-los. Há sanitização para alguns quadros do protocolo inspecionados, mas não presuma que os logs nunca contenham informações sensíveis.

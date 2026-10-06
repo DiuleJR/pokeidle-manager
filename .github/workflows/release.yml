@@ -1,4 +1,4 @@
-name: Windows Community Release
+name: Lançamento comunitário para Windows
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build unsigned Windows installers
+    name: Compilar instaladores Windows sem assinatura
     runs-on: windows-latest
     permissions:
       contents: write
@@ -32,18 +32,18 @@ jobs:
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --no-default-features --features community-build
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --no-default-features --features community-build
       - run: npm run tauri:build:community
-      - name: Generate SHA-256 checksums
+      - name: Gerar somas de verificação SHA-256
         shell: pwsh
         run: |
           $artifacts = Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -File |
             Where-Object { $_.Extension -in '.msi', '.exe' }
-          if (-not $artifacts) { throw 'No MSI or EXE installer was produced.' }
+          if (-not $artifacts) { throw 'Nenhum instalador MSI ou EXE foi gerado.' }
           $lines = foreach ($artifact in $artifacts) {
             $hash = (Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($artifact.Name)"
           }
           $lines | Set-Content -LiteralPath 'SHA256SUMS.txt' -Encoding ascii
-      - name: Publish unsigned release
+      - name: Publicar versão sem assinatura
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh

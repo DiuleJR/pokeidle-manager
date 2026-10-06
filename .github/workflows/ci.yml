@@ -1,4 +1,4 @@
-name: CI
+name: Verificações automatizadas
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   frontend:
-    name: Frontend checks
+    name: Verificações da interface
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -23,7 +23,7 @@ jobs:
       - run: npm run build
 
   rust:
-    name: Rust checks (Community)
+    name: Verificações Rust (edição comunitária)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "purpose": "Frozen migration audit of the canonical public source tree; no private-repository export step is used for ongoing development.",
+  "purpose": "Registro congelado da auditoria de migração da árvore canônica do código-fonte público; o desenvolvimento contínuo não usa etapa de exportação do repositório privado.",
   "files": [
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",

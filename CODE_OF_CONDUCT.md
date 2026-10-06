@@ -1,7 +1,7 @@
-# Code of Conduct
+# Código de Conduta
 
-This project aims to be welcoming, respectful, and collaborative. Participants should use considerate language, respect differing viewpoints, give and receive constructive feedback, and focus on what is best for the community.
+Este projeto busca ser acolhedor, respeitoso e colaborativo. Esperamos que todas as pessoas participantes se comuniquem com consideração, respeitem opiniões diferentes, ofereçam e recebam críticas construtivas e priorizem o que é melhor para a comunidade.
 
-Harassment, discrimination, threats, personal attacks, doxxing, and publication of another person's private information without consent are not acceptable. Respect privacy and do not post account credentials, browser cookies, personal identifiers, or private vulnerability reports in public spaces.
+Assédio, discriminação, ameaças, ataques pessoais, exposição de dados pessoais e divulgação de informações privadas de outra pessoa sem consentimento não são aceitáveis. Respeite a privacidade: não publique credenciais de conta, cookies do navegador, identificadores pessoais ou relatos privados de vulnerabilidades.
 
-Maintainers are responsible for clarifying standards and responding to conduct that is harmful or unacceptable. No official moderation contact or public community channel has been established yet; verified reporting details will be added here once available. Do not infer an unofficial channel from this document.
+As pessoas mantenedoras são responsáveis por esclarecer estes padrões e responder a condutas prejudiciais ou inaceitáveis. Ainda não existe um contato oficial para moderação nem um canal público oficial da comunidade; informações verificadas para denúncias serão acrescentadas aqui quando estiverem disponíveis. Não deduza que algum canal não oficial seja autorizado por este documento.

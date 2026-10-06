@@ -1,7 +1,7 @@
-# Trademarks and affiliation
+# Marcas e afiliação
 
-“Pokeidle” and Pokémon names, characters, artwork, and related marks belong to their respective owners. Pokeidle Manager is an independent, unofficial community project and is not affiliated with, endorsed by, sponsored by, or operated by Pokeidle, Nintendo, The Pokémon Company, Game Freak, or their affiliates.
+“Pokeidle”, os nomes Pokémon, personagens, artes e marcas relacionadas pertencem aos respectivos titulares. O Pokeidle Manager é um projeto comunitário independente e não oficial; não é afiliado, endossado, patrocinado nem operado pelo Pokeidle, Nintendo, The Pokémon Company, Game Freak ou suas afiliadas.
 
-Names are used only to identify the game and data the application works with. This project does not grant rights to third-party names, marks, game data, or artwork. Product branding and asset use remain subject to their owners' rights and applicable terms.
+Os nomes são usados apenas para identificar o jogo e os dados com os quais o aplicativo trabalha. Este projeto não concede direitos sobre nomes, marcas, dados do jogo ou artes de terceiros. A identidade visual e o uso de ativos permanecem sujeitos aos direitos de seus titulares e aos termos aplicáveis.
 
-No public support channel, donation address, or payment/PIX destination is established. Do not treat a copied or unofficial payment request as authorized by this project.
+Não há canal público de suporte, endereço para doações ou chave PIX estabelecidos. Não considere autorizado pelo projeto qualquer pedido de pagamento copiado ou não oficial.
