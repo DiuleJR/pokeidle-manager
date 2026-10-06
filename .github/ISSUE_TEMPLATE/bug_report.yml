@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Nunca anexe cookies, tokens, perfis do navegador, bancos SQLite ou logs brutos que possam conter dados de autenticação. Oculte nomes de contas e outras informações pessoais.
+        Nunca envie cookies, tokens, perfis do navegador (profiles), bancos SQLite reais, sessões autenticadas, credenciais ou logs brutos com dados de autenticação. Oculte nomes de contas e outras informações pessoais.
   - type: textarea
     id: summary
     attributes:
