@@ -7,6 +7,8 @@ coverage/
 src-tauri/target/
 target/
 src-tauri/gen/
+/.local-runtime-poc/
+/.local-runtime-poc-profile/
 
 # Local account/browser data and runtime caches.
 profiles/

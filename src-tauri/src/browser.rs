@@ -41,6 +41,8 @@ const BROWSER_RECONNECT_GRACE: Duration = Duration::from_secs(8);
 pub enum BrowserError {
     #[error("Brave não encontrado. Instale o Brave ou informe seu caminho nas configurações.")]
     NotFound,
+    #[error("runtime Brave configurado está incompleto ou não contém brave.exe: {0}")]
+    InvalidRuntime(PathBuf),
     #[error("não foi possível iniciar o Brave: {0}")]
     Launch(String),
     #[error("Falha ao acessar http://127.0.0.1:{port}/json/version: {details}")]
@@ -222,6 +224,75 @@ pub struct WindowsBraveManager {
     base: PathBuf,
 }
 
+/// Resolves a Brave executable for the current process. The environment
+/// override is intentionally experimental and only used by the local runtime
+/// portability POC; when absent, discovery preserves the existing behavior.
+#[derive(Debug, Clone, Default)]
+pub struct BrowserRuntimeResolver {
+    managed_runtime_dir: Option<PathBuf>,
+    system_candidates: Vec<PathBuf>,
+}
+
+impl BrowserRuntimeResolver {
+    pub fn current_process() -> Self {
+        let managed_runtime_dir =
+            std::env::var_os("POKEIDLE_MANAGER_BROWSER_RUNTIME_DIR").map(PathBuf::from);
+        let system_candidates = [
+            std::env::var_os("PROGRAMFILES")
+                .map(PathBuf::from)
+                .map(|p| p.join("BraveSoftware/Brave-Browser/Application")),
+            std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .map(|p| p.join("BraveSoftware/Brave-Browser/Application")),
+            std::env::var_os("PROGRAMFILES(X86)")
+                .map(PathBuf::from)
+                .map(|p| p.join("BraveSoftware/Brave-Browser/Application")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        Self {
+            managed_runtime_dir,
+            system_candidates,
+        }
+    }
+
+    fn resolve(&self) -> Result<PathBuf, BrowserError> {
+        if let Some(runtime_dir) = &self.managed_runtime_dir {
+            let executable = runtime_dir.join("brave.exe");
+            if is_complete_brave_runtime(runtime_dir) {
+                return Ok(executable);
+            }
+            // An explicit POC path must fail closed rather than silently
+            // falling back to an installed browser and invalidating the test.
+            return Err(BrowserError::InvalidRuntime(runtime_dir.clone()));
+        }
+
+        self.system_candidates
+            .iter()
+            .map(|directory| directory.join("brave.exe"))
+            .find(|path| path.is_file())
+            .ok_or(BrowserError::NotFound)
+    }
+}
+
+fn is_complete_brave_runtime(runtime_dir: &std::path::Path) -> bool {
+    let executable = runtime_dir.join("brave.exe");
+    if !executable.is_file() {
+        return false;
+    }
+    let Ok(entries) = std::fs::read_dir(runtime_dir) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        entry.file_type().is_ok_and(|kind| kind.is_dir())
+            && entry.path().join("chrome.dll").is_file()
+            && entry.path().join("icudtl.dat").is_file()
+            && entry.path().join("Locales").is_dir()
+            && entry.path().join("resources").is_dir()
+    })
+}
+
 /// The process handle for the one Brave instance opened by a recovery probe.
 /// The CLI keeps ownership so it can wait/reap it even if CDP setup fails.
 pub type RecoveryProcessSlot = Arc<tokio::sync::Mutex<Option<tokio::process::Child>>>;
@@ -279,22 +350,7 @@ impl WindowsBraveManager {
         }
     }
     pub fn detect_brave(&self) -> Result<PathBuf, BrowserError> {
-        let paths = [
-            std::env::var_os("PROGRAMFILES")
-                .map(PathBuf::from)
-                .map(|p| p.join("BraveSoftware/Brave-Browser/Application/brave.exe")),
-            std::env::var_os("LOCALAPPDATA")
-                .map(PathBuf::from)
-                .map(|p| p.join("BraveSoftware/Brave-Browser/Application/brave.exe")),
-            std::env::var_os("PROGRAMFILES(X86)")
-                .map(PathBuf::from)
-                .map(|p| p.join("BraveSoftware/Brave-Browser/Application/brave.exe")),
-        ];
-        paths
-            .into_iter()
-            .flatten()
-            .find(|path| path.is_file())
-            .ok_or(BrowserError::NotFound)
+        BrowserRuntimeResolver::current_process().resolve()
     }
     fn saved_cdp_port(&self, profile: &BrowserProfile) -> Option<u16> {
         std::fs::read_to_string(profile.path.join("cdp-port"))
@@ -4383,6 +4439,265 @@ mod browser_target_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn create_test_runtime(parent: &std::path::Path) -> PathBuf {
+        let runtime = parent.join("Application");
+        let version = runtime.join("test-version");
+        std::fs::create_dir_all(version.join("Locales")).unwrap();
+        std::fs::create_dir_all(version.join("resources")).unwrap();
+        std::fs::write(runtime.join("brave.exe"), b"test executable").unwrap();
+        std::fs::write(version.join("chrome.dll"), b"test engine").unwrap();
+        std::fs::write(version.join("icudtl.dat"), b"test ICU").unwrap();
+        runtime
+    }
+
+    #[test]
+    fn runtime_resolver_prefers_a_complete_managed_runtime() {
+        let root =
+            std::env::temp_dir().join(format!("pokeidle-resolver-test-{}", uuid::Uuid::new_v4()));
+        let runtime = create_test_runtime(&root);
+        let fallback = root.join("fallback").join("brave.exe");
+        std::fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        std::fs::write(&fallback, b"fallback executable").unwrap();
+
+        let resolved = BrowserRuntimeResolver {
+            managed_runtime_dir: Some(runtime.clone()),
+            system_candidates: vec![fallback.parent().unwrap().to_path_buf()],
+        }
+        .resolve();
+
+        assert_eq!(resolved.unwrap(), runtime.join("brave.exe"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn runtime_resolver_fails_closed_for_an_incomplete_explicit_runtime() {
+        let root =
+            std::env::temp_dir().join(format!("pokeidle-resolver-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let incomplete = root.join("incomplete");
+        std::fs::create_dir_all(&incomplete).unwrap();
+        std::fs::write(incomplete.join("brave.exe"), b"only the launcher").unwrap();
+        let fallback = root.join("fallback");
+        std::fs::create_dir_all(&fallback).unwrap();
+        std::fs::write(fallback.join("brave.exe"), b"fallback executable").unwrap();
+
+        let error = BrowserRuntimeResolver {
+            managed_runtime_dir: Some(incomplete),
+            system_candidates: vec![fallback],
+        }
+        .resolve()
+        .unwrap_err();
+
+        assert!(matches!(error, BrowserError::InvalidRuntime(_)));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn runtime_resolver_preserves_system_brave_fallback_without_override() {
+        let root =
+            std::env::temp_dir().join(format!("pokeidle-resolver-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("brave.exe"), b"fallback executable").unwrap();
+
+        let resolved = BrowserRuntimeResolver {
+            managed_runtime_dir: None,
+            system_candidates: vec![root.clone()],
+        }
+        .resolve();
+
+        assert_eq!(resolved.unwrap(), root.join("brave.exe"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Manual Windows-only portability experiment. Run with
+    /// `POKEIDLE_MANAGER_BROWSER_RUNTIME_DIR` pointing to a copied Brave
+    /// Application directory; this test must never run in regular CI.
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "manual local Brave runtime portability POC"]
+    async fn copied_brave_runtime_supports_cdp_neutral_navigation_and_profile_restart() {
+        let runtime_dir = std::env::var_os("POKEIDLE_MANAGER_BROWSER_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .expect("set POKEIDLE_MANAGER_BROWSER_RUNTIME_DIR to the copied Application directory");
+        let executable = BrowserRuntimeResolver {
+            managed_runtime_dir: Some(runtime_dir.clone()),
+            system_candidates: Vec::new(),
+        }
+        .resolve()
+        .expect("the POC resolver must select the copied runtime and not the installed Brave");
+        let poc_root = std::env::var_os("POKEIDLE_MANAGER_POC_DATA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                std::env::temp_dir().join(format!(
+                    "pokeidle-browser-runtime-profile-{}",
+                    uuid::Uuid::new_v4()
+                ))
+            });
+        let manager = WindowsBraveManager::new(poc_root.clone());
+        let profile_id = format!("neutral-{}", uuid::Uuid::new_v4());
+        let profile = manager.profile_for(&profile_id);
+        std::fs::create_dir_all(&profile.path).unwrap();
+        let client = cdp_http_client().unwrap();
+
+        let first_port = free_local_port().unwrap();
+        let mut first_process = manager
+            .launch_controlled(
+                &executable,
+                &profile,
+                first_port,
+                Some("about:blank"),
+                BrowserSessionMode::InteractiveOwner,
+            )
+            .unwrap();
+        let first_result = async {
+            let version = wait_for_cdp_endpoint(&client, first_port, &Arc::new(Mutex::new(IntegrationDiagnostic::default())))
+                .await
+                .map_err(|error| error.to_string())?;
+            let stream = connect_async(&version.web_socket_debugger_url)
+                .await
+                .map_err(|error| error.to_string())?
+                .0;
+            let mut socket = CdpSocket { stream, pending_events: VecDeque::new() };
+            let target_deadline = Instant::now() + Duration::from_secs(10);
+            let mut target = None;
+            while Instant::now() < target_deadline {
+                let (targets, _) = cdp_command(&mut socket, 1, "Target.getTargets", json!({}), None)
+                    .await.map_err(|error| error.to_string())?;
+                target = targets_from(&targets)
+                    .map_err(|error| error.to_string())?
+                    .into_iter()
+                    .find(|target| target.target_type == "page");
+                if target.is_some() { break; }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            let target = target.ok_or_else(|| "no page target was found after waiting for Brave startup".to_owned())?;
+            let (attached, _) = cdp_command(
+                &mut socket,
+                2,
+                "Target.attachToTarget",
+                json!({"targetId": target.id, "flatten": true}),
+                None,
+            ).await.map_err(|error| error.to_string())?;
+            let session = attached.get("sessionId").and_then(Value::as_str)
+                .ok_or_else(|| "CDP did not return a target session".to_owned())?.to_owned();
+            cdp_command(&mut socket, 3, "Page.enable", json!({}), Some(&session))
+                .await.map_err(|error| error.to_string())?;
+            cdp_command(&mut socket, 4, "Network.enable", json!({}), Some(&session))
+                .await.map_err(|error| error.to_string())?;
+            cdp_command(&mut socket, 5, "Runtime.enable", json!({}), Some(&session))
+                .await.map_err(|error| error.to_string())?;
+            cdp_command(
+                &mut socket,
+                6,
+                "Page.navigate",
+                json!({"url": "https://example.com/"}),
+                Some(&session),
+            ).await.map_err(|error| error.to_string())?;
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let mut final_url = String::new();
+            while Instant::now() < deadline {
+                let (targets, _) = cdp_command(&mut socket, 7, "Target.getTargets", json!({}), None)
+                    .await.map_err(|error| error.to_string())?;
+                final_url = targets_from(&targets).map_err(|error| error.to_string())?
+                    .into_iter().find(|item| item.id == target.id)
+                    .map(|item| item.url).unwrap_or_default();
+                if final_url.starts_with("https://example.com") { break; }
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            if !final_url.starts_with("https://example.com") {
+                return Err(format!("neutral navigation did not complete: {final_url}"));
+            }
+            cdp_command(
+                &mut socket,
+                8,
+                "Runtime.evaluate",
+                json!({"expression": "localStorage.setItem('pokeidle-runtime-poc', 'persistent'); 'written'", "returnByValue": true}),
+                Some(&session),
+            ).await.map_err(|error| error.to_string())?;
+            if !profile.path.join("Local State").is_file() {
+                return Err("Chromium did not create the isolated profile's Local State".into());
+            }
+            println!("poc_browser_pid={:?}", first_process.id());
+            if let Some(seconds) = std::env::var("POKEIDLE_MANAGER_POC_HOLD")
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok())
+            {
+                tokio::time::sleep(Duration::from_secs(seconds.min(30))).await;
+            }
+            cdp_command(&mut socket, 9, "Browser.close", json!({}), None)
+                .await.map_err(|error| error.to_string())?;
+            Ok::<_, String>((version.browser, final_url))
+        }.await;
+        let _ = tokio::time::timeout(Duration::from_secs(10), first_process.wait()).await;
+        if first_process.try_wait().ok().flatten().is_none() {
+            let _ = terminate_recovery_process_tree(&mut first_process).await;
+        }
+        let (browser_product, final_url) =
+            first_result.expect("first Brave/CDP session should succeed");
+        assert!(profile.path.join("Default").join("Preferences").is_file());
+
+        let second_port = free_local_port().unwrap();
+        let mut second_process = manager
+            .launch_controlled(
+                &executable,
+                &profile,
+                second_port,
+                Some("about:blank"),
+                BrowserSessionMode::InteractiveOwner,
+            )
+            .unwrap();
+        let second_result = async {
+            let version = wait_for_cdp_endpoint(&client, second_port, &Arc::new(Mutex::new(IntegrationDiagnostic::default())))
+                .await.map_err(|error| error.to_string())?;
+            let stream = connect_async(&version.web_socket_debugger_url)
+                .await.map_err(|error| error.to_string())?.0;
+            let mut socket = CdpSocket { stream, pending_events: VecDeque::new() };
+            let target_deadline = Instant::now() + Duration::from_secs(10);
+            let mut target = None;
+            while Instant::now() < target_deadline {
+                let (targets, _) = cdp_command(&mut socket, 1, "Target.getTargets", json!({}), None)
+                    .await.map_err(|error| error.to_string())?;
+                target = targets_from(&targets).map_err(|error| error.to_string())?
+                    .into_iter().find(|target| target.target_type == "page");
+                if target.is_some() { break; }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            let target = target.ok_or_else(|| "reopened profile had no page target".to_owned())?;
+            let (attached, _) = cdp_command(&mut socket, 2, "Target.attachToTarget", json!({"targetId": target.id, "flatten": true}), None)
+                .await.map_err(|error| error.to_string())?;
+            let session = attached.get("sessionId").and_then(Value::as_str)
+                .ok_or_else(|| "reopened target had no CDP session".to_owned())?.to_owned();
+            cdp_command(&mut socket, 3, "Runtime.enable", json!({}), Some(&session))
+                .await.map_err(|error| error.to_string())?;
+            let (stored, _) = cdp_command(
+                &mut socket,
+                4,
+                "Runtime.evaluate",
+                json!({"expression": "localStorage.getItem('pokeidle-runtime-poc')", "returnByValue": true}),
+                Some(&session),
+            ).await.map_err(|error| error.to_string())?;
+            if stored.pointer("/result/value").and_then(Value::as_str) != Some("persistent") {
+                return Err("profile localStorage did not persist across Brave restart".into());
+            }
+            cdp_command(&mut socket, 5, "Browser.close", json!({}), None)
+                .await.map_err(|error| error.to_string())?;
+            Ok::<_, String>(())
+        }.await;
+        let _ = tokio::time::timeout(Duration::from_secs(10), second_process.wait()).await;
+        if second_process.try_wait().ok().flatten().is_none() {
+            let _ = terminate_recovery_process_tree(&mut second_process).await;
+        }
+        second_result.expect("reopened profile should preserve localStorage through CDP");
+        println!(
+            "runtime={}\ndata_dir={}\nprofile={}\nbrowser={}\nnavigation={}\nprofile_persisted=true",
+            runtime_dir.display(),
+            poc_root.display(),
+            profile.path.display(),
+            browser_product,
+            final_url
+        );
+    }
 
     #[test]
     fn recovery_bridge_policy_is_fail_closed_and_preserves_handshake_queries() {
