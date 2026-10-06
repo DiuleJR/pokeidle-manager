@@ -1,9 +1,11 @@
 [package]
 name = "pokeidle-manager"
 version = "0.1.0"
-description = "Unofficial local desktop companion for Pokeidle accounts and game information"
-authors = ["Pokeidle Manager contributors"]
+description = "Aplicativo comunitário não oficial para gerenciar contas do Pokeidle e consultar informações do jogo"
+authors = ["Contribuidores do Pokeidle Manager"]
 license = "GPL-3.0-only"
+homepage = "https://github.com/DiuleJR/pokeidle-manager"
+repository = "https://github.com/DiuleJR/pokeidle-manager"
 publish = false
 edition = "2024"
 default-run = "pokeidle-manager"

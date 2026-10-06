@@ -2,8 +2,13 @@
   "name": "pokeidle-manager",
   "private": true,
   "version": "0.1.0",
-  "description": "Unofficial local desktop companion for Pokeidle accounts and game information",
+  "description": "Aplicativo comunitário não oficial para gerenciar contas do Pokeidle e consultar informações do jogo",
   "license": "GPL-3.0-only",
+  "homepage": "https://github.com/DiuleJR/pokeidle-manager",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DiuleJR/pokeidle-manager.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
