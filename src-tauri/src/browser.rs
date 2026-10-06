@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    io::Read,
     net::TcpListener,
     path::PathBuf,
     process::Stdio,
@@ -39,13 +40,21 @@ const BROWSER_RECONNECT_GRACE: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Error)]
 pub enum BrowserError {
-    #[error("Brave não encontrado. Instale o Brave ou informe seu caminho nas configurações.")]
+    #[error(
+        "BROWSER_NOT_FOUND: Brave não encontrado. Instale o Brave pelo site oficial e tente novamente."
+    )]
     NotFound,
-    #[error("não foi possível iniciar o Brave: {0}")]
+    #[error(
+        "BROWSER_INVALID_INSTALLATION: a instalação encontrada não contém um executável Brave válido."
+    )]
+    InvalidInstallation(PathBuf),
+    #[error("não foi possível iniciar a operação do navegador: {0}")]
     Launch(String),
-    #[error("Falha ao acessar http://127.0.0.1:{port}/json/version: {details}")]
+    #[error("BROWSER_FAILED_TO_START: não foi possível iniciar o Brave: {0}")]
+    BrowserFailedToStart(String),
+    #[error("CDP_STARTUP_FAILED: falha ao acessar http://127.0.0.1:{port}/json/version: {details}")]
     CdpEndpoint { port: u16, details: String },
-    #[error("não foi possível configurar o cliente HTTP local do CDP: {0}")]
+    #[error("CDP_STARTUP_FAILED: não foi possível configurar o cliente HTTP local do CDP: {0}")]
     CdpClient(String),
     #[error("não há uma aba do jogo disponível para inspeção")]
     GameTabUnavailable,
@@ -290,11 +299,7 @@ impl WindowsBraveManager {
                 .map(PathBuf::from)
                 .map(|p| p.join("BraveSoftware/Brave-Browser/Application/brave.exe")),
         ];
-        paths
-            .into_iter()
-            .flatten()
-            .find(|path| path.is_file())
-            .ok_or(BrowserError::NotFound)
+        resolve_brave_candidates(paths.into_iter().flatten())
     }
     fn saved_cdp_port(&self, profile: &BrowserProfile) -> Option<u16> {
         std::fs::read_to_string(profile.path.join("cdp-port"))
@@ -377,7 +382,38 @@ impl WindowsBraveManager {
         }
         command
             .spawn()
-            .map_err(|error| BrowserError::Launch(error.to_string()))
+            .map_err(|error| BrowserError::BrowserFailedToStart(error.to_string()))
+    }
+}
+
+fn resolve_brave_candidates(
+    paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<PathBuf, BrowserError> {
+    let mut invalid_candidate = None;
+    for path in paths {
+        if path.is_file() {
+            let is_windows_executable = std::fs::File::open(&path)
+                .and_then(|mut file| {
+                    let mut signature = [0; 2];
+                    file.read_exact(&mut signature)?;
+                    Ok(signature == *b"MZ")
+                })
+                .unwrap_or(false);
+            if is_windows_executable {
+                return Ok(path);
+            }
+            if invalid_candidate.is_none() {
+                invalid_candidate = Some(path);
+            }
+            continue;
+        }
+        if path.exists() && invalid_candidate.is_none() {
+            invalid_candidate = Some(path);
+        }
+    }
+    match invalid_candidate {
+        Some(path) => Err(BrowserError::InvalidInstallation(path)),
+        None => Err(BrowserError::NotFound),
     }
 }
 
@@ -2596,6 +2632,7 @@ pub async fn start_observer(
     owner_loss_sender: Option<tokio::sync::mpsc::UnboundedSender<BrowserOwnerLost>>,
     lifecycle_cancellation: tokio_util::sync::CancellationToken,
     recovery_process: Option<RecoveryProcessSlot>,
+    resolved_executable: Option<PathBuf>,
 ) {
     if lifecycle_cancellation.is_cancelled() {
         return;
@@ -2643,7 +2680,10 @@ pub async fn start_observer(
             ..Default::default()
         };
     });
-    let executable = match manager.detect_brave() {
+    let executable = match resolved_executable
+        .map(Ok)
+        .unwrap_or_else(|| manager.detect_brave())
+    {
         Ok(path) => {
             update(&diagnostic, |status| {
                 status.brave_found = true;
@@ -4383,6 +4423,77 @@ mod browser_target_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn unique_test_root() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "pokeidle-brave-resolver-test-{}",
+            uuid::Uuid::new_v4()
+        ))
+    }
+
+    #[test]
+    fn brave_resolver_returns_existing_executable_candidate() {
+        let root = unique_test_root();
+        let executable = root.join("Application").join("brave.exe");
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(&executable, b"MZ test executable placeholder").unwrap();
+
+        assert_eq!(
+            resolve_brave_candidates([executable.clone()]).unwrap(),
+            executable
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn brave_resolver_distinguishes_missing_and_invalid_installation() {
+        let root = unique_test_root();
+        let missing = root.join("missing").join("brave.exe");
+        assert!(matches!(
+            resolve_brave_candidates([missing]),
+            Err(BrowserError::NotFound)
+        ));
+
+        let invalid = root.join("invalid").join("brave.exe");
+        std::fs::create_dir_all(&invalid).unwrap();
+        assert!(matches!(
+            resolve_brave_candidates([invalid.clone()]),
+            Err(BrowserError::InvalidInstallation(path)) if path == invalid
+        ));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn brave_resolver_retries_filesystem_detection_without_caching_not_found() {
+        let root = unique_test_root();
+        let executable = root.join("Application").join("brave.exe");
+        assert!(matches!(
+            resolve_brave_candidates([executable.clone()]),
+            Err(BrowserError::NotFound)
+        ));
+
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(&executable, b"MZ test executable placeholder").unwrap();
+        assert_eq!(
+            resolve_brave_candidates([executable.clone()]).unwrap(),
+            executable
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn brave_resolver_rejects_a_corrupt_executable_file() {
+        let root = unique_test_root();
+        let executable = root.join("Application").join("brave.exe");
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(&executable, b"not a windows executable").unwrap();
+
+        assert!(matches!(
+            resolve_brave_candidates([executable.clone()]),
+            Err(BrowserError::InvalidInstallation(path)) if path == executable
+        ));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn recovery_bridge_policy_is_fail_closed_and_preserves_handshake_queries() {

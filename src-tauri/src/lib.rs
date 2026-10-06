@@ -53,6 +53,7 @@ compile_error!("mobile-local-server is development-only");
 const DEFAULT_GAME_URL: &str = "https://pokeidle.io/app";
 const DEFAULT_STARTUP_BROWSER_CONCURRENCY: u8 = 1;
 const MAX_STARTUP_BROWSER_CONCURRENCY: u8 = MAX_ACCOUNTS as u8;
+const BRAVE_DOWNLOAD_URL: &str = "https://brave.com/pt-br/download/";
 static APPLICATION_STARTED: OnceLock<Instant> = OnceLock::new();
 
 // Browser contains a few development-only validation instrumentation points.
@@ -424,6 +425,7 @@ async fn recover_lost_browser_owner(
         None,
         lifecycle_cancellation.clone(),
         None,
+        None,
     )
     .await;
     if !lifecycle_cancellation.is_cancelled()
@@ -449,9 +451,26 @@ fn launch_session(
     mode: browser::BrowserSessionMode,
     lifecycle_guard: Option<tokio::sync::OwnedMutexGuard<()>>,
 ) {
+    launch_session_with_executable(core, account_id, mode, lifecycle_guard, None);
+}
+
+fn launch_session_with_executable(
+    core: AppCore,
+    account_id: String,
+    mode: browser::BrowserSessionMode,
+    lifecycle_guard: Option<tokio::sync::OwnedMutexGuard<()>>,
+    resolved_executable: Option<std::path::PathBuf>,
+) {
     startup_mark("account bootstrap scheduled");
     let settings = core.settings.lock().clone();
     let base = core.app_data_dir.clone();
+    let provisional_profile = matches!(mode, browser::BrowserSessionMode::Interactive)
+        .then(|| base.join("profiles").join(&account_id));
+    let provisional_profile_preexisted = provisional_profile
+        .as_ref()
+        .is_some_and(|profile_path| profile_path.exists());
+    let provisional_process = matches!(mode, browser::BrowserSessionMode::Interactive)
+        .then(|| Arc::new(tokio::sync::Mutex::new(None)));
     let accounts = core.accounts.clone();
     let database = core.database.clone();
     let diagnostic = core.diagnostic.clone();
@@ -496,16 +515,17 @@ fn launch_session(
             };
         let observer_diagnostic = diagnostic.clone();
         let observer = browser::start_observer(
-            base,
+            base.clone(),
             observer_account_id,
             settings.game_url,
             mode,
             observer_accounts,
-            database,
+            database.clone(),
             diagnostic.clone(),
             owner_loss_sender,
             lifecycle_cancellation.clone(),
-            None,
+            provisional_process.clone(),
+            resolved_executable,
         );
         // Only background bootstrap is serialized. A user explicitly opening
         // two profiles must not be made to wait behind an unrelated startup.
@@ -516,6 +536,54 @@ fn launch_session(
             observer.await;
         } else {
             observer.await;
+        }
+        if matches!(mode, browser::BrowserSessionMode::Interactive)
+            && !lifecycle_cancellation.is_cancelled()
+            && accounts.lifecycle_is_current(&account_id, lifecycle_epoch)
+        {
+            let account_persisted = match database.lock().query_row(
+                "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1)",
+                [&account_id],
+                |row| row.get::<_, bool>(0),
+            ) {
+                Ok(persisted) => persisted,
+                Err(error) => {
+                    tracing::warn!(account_id, %error, "could not verify whether provisional account was persisted; preserving its data");
+                    true
+                }
+            };
+            let diagnostic_confirms_welcome = {
+                let diagnostic = observer_diagnostic.lock();
+                diagnostic.account_id.as_deref() == Some(account_id.as_str())
+                    && diagnostic.welcome_received
+            };
+            let startup_failed_before_authentication =
+                !account_persisted && !diagnostic_confirms_welcome;
+            if startup_failed_before_authentication {
+                // Interactive mode is used only for a just-created provisional
+                // account. Never apply this rollback to an existing profile.
+                if accounts.remove(&account_id).is_ok() {
+                    tracing::warn!(
+                        account_id,
+                        "removing provisional account after browser startup failure"
+                    );
+                }
+                let process_stopped = if let Some(process_slot) = provisional_process.as_ref()
+                    && let Some(mut child) = process_slot.lock().await.take()
+                {
+                    browser::terminate_recovery_process_tree(&mut child).await
+                } else {
+                    true
+                };
+                if process_stopped
+                    && !provisional_profile_preexisted
+                    && let Some(profile_path) = provisional_profile.as_ref()
+                    && profile_path.exists()
+                    && let Err(error) = std::fs::remove_dir_all(profile_path)
+                {
+                    tracing::warn!(account_id, %error, "could not remove provisional browser profile after startup failure");
+                }
+            }
         }
         if mode_uses_startup_bootstrap_gate(mode) {
             let runtime = accounts
@@ -1375,16 +1443,22 @@ async fn open_account_browser(
         .lifecycle_lock(&account_id)
         .lock_owned()
         .await;
+    let manager = browser::WindowsBraveManager::new(state.app_data_dir.clone());
+    let executable = manager.detect_brave().map_err(|error| {
+        tracing::info!(%error, "browser preflight: unavailable for existing account browser open");
+        error.to_string()
+    })?;
     let background = state
         .accounts
         .begin_browser_transfer(&account_id)
         .map_err(|error| error.to_string())?;
     background.shutdown().await;
-    launch_session(
+    launch_session_with_executable(
         state.inner().clone(),
         account_id,
         browser::BrowserSessionMode::InteractiveOwner,
         Some(lifecycle_guard),
+        Some(executable),
     );
     Ok(())
 }
@@ -1398,15 +1472,22 @@ async fn reconnect_browser_control(
         .lifecycle_lock(&account_id)
         .lock_owned()
         .await;
+    let executable = browser::WindowsBraveManager::new(state.app_data_dir.clone())
+        .detect_brave()
+        .map_err(|error| {
+            tracing::info!(%error, "browser preflight: unavailable for browser reconnect");
+            error.to_string()
+        })?;
     state
         .accounts
         .begin_browser_reconnect(&account_id)
         .map_err(|error| error.to_string())?;
-    launch_session(
+    launch_session_with_executable(
         state.inner().clone(),
         account_id.clone(),
         browser::BrowserSessionMode::ReconnectExistingOwner,
         Some(lifecycle_guard),
+        Some(executable),
     );
 
     // The observer runs in the background, so returning immediately makes a
@@ -1446,6 +1527,15 @@ async fn reconnect_browser_control(
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
+
+#[tauri::command]
+fn open_brave_download_page(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    app.opener()
+        .open_url(BRAVE_DOWNLOAD_URL, None::<&str>)
+        .map_err(|error| error.to_string())
+}
 #[tauri::command]
 fn return_account_to_background(
     state: tauri::State<'_, AppCore>,
@@ -1458,7 +1548,12 @@ fn return_account_to_background(
 }
 #[tauri::command]
 fn login_account(state: tauri::State<'_, AppCore>, account_id: String) -> Result<(), String> {
-    launch_session(
+    let manager = browser::WindowsBraveManager::new(state.app_data_dir.clone());
+    let executable = manager.detect_brave().map_err(|error| {
+        tracing::info!(%error, "browser preflight: unavailable for account login");
+        error.to_string()
+    })?;
+    launch_session_with_executable(
         state.inner().clone(),
         account_id,
         // Login recovery should reuse the persistent profile invisibly, transfer
@@ -1466,6 +1561,7 @@ fn login_account(state: tauri::State<'_, AppCore>, account_id: String) -> Result
         // browser instead of requiring the user to open the profile manually.
         browser::BrowserSessionMode::BackgroundBootstrap,
         None,
+        Some(executable),
     );
     Ok(())
 }
@@ -1512,11 +1608,43 @@ fn clear_protocol_inspector_frames(
         .clear_protocol_frames(&account_id)
         .map_err(|error| error.to_string())
 }
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum StartAccountResult {
+    Started { account_id: String },
+    BrowserNotFound,
+    InvalidInstallation,
+    LimitReached,
+}
+
 #[tauri::command]
-fn start_real_account(state: tauri::State<'_, AppCore>) -> Result<(), String> {
+fn start_real_account(state: tauri::State<'_, AppCore>) -> Result<StartAccountResult, String> {
     if state.accounts.count() >= MAX_ACCOUNTS {
-        return Err("Limite de 4 contas atingido.".into());
+        return Ok(StartAccountResult::LimitReached);
     }
+    let manager = browser::WindowsBraveManager::new(state.app_data_dir.clone());
+    let executable = match manager.detect_brave() {
+        Ok(executable) => {
+            tracing::info!("browser preflight: available");
+            executable
+        }
+        Err(browser::BrowserError::NotFound) => {
+            tracing::info!("browser preflight: not found");
+            return Ok(StartAccountResult::BrowserNotFound);
+        }
+        Err(browser::BrowserError::InvalidInstallation(_)) => {
+            tracing::warn!("browser preflight: invalid installation");
+            return Ok(StartAccountResult::InvalidInstallation);
+        }
+        Err(error) => {
+            tracing::warn!(%error, "browser preflight failed");
+            return Err(error.to_string());
+        }
+    };
     let account_id = uuid::Uuid::new_v4().to_string();
     let record = accounts::new_record(
         account_id.clone(),
@@ -1527,13 +1655,14 @@ fn start_real_account(state: tauri::State<'_, AppCore>) -> Result<(), String> {
         .accounts
         .add(record)
         .map_err(|error| error.to_string())?;
-    launch_session(
+    launch_session_with_executable(
         state.inner().clone(),
-        account_id,
+        account_id.clone(),
         browser::BrowserSessionMode::Interactive,
         None,
+        Some(executable),
     );
-    Ok(())
+    Ok(StartAccountResult::Started { account_id })
 }
 #[tauri::command]
 fn enable_mock_mode(state: tauri::State<'_, AppCore>) -> Result<Vec<AccountSnapshot>, String> {
@@ -1706,6 +1835,7 @@ pub fn run() {
             update_auto_buy_rule,
             open_account_browser,
             reconnect_browser_control,
+            open_brave_download_page,
             return_account_to_background,
             login_account,
             remove_account,
@@ -1730,6 +1860,34 @@ pub fn run() {
 mod tests {
     use super::*;
     use protocol::ServerFrame;
+
+    #[test]
+    fn start_account_result_exposes_stable_preflight_statuses() {
+        assert_eq!(
+            serde_json::to_value(StartAccountResult::Started {
+                account_id: "test-account".into()
+            })
+            .unwrap(),
+            serde_json::json!({"status": "started", "accountId": "test-account"})
+        );
+        assert_eq!(
+            serde_json::to_value(StartAccountResult::BrowserNotFound).unwrap(),
+            serde_json::json!({"status": "browserNotFound"})
+        );
+        assert_eq!(
+            serde_json::to_value(StartAccountResult::InvalidInstallation).unwrap(),
+            serde_json::json!({"status": "invalidInstallation"})
+        );
+        assert_eq!(
+            serde_json::to_value(StartAccountResult::LimitReached).unwrap(),
+            serde_json::json!({"status": "limitReached"})
+        );
+    }
+
+    #[test]
+    fn brave_download_url_is_fixed_to_the_official_brazilian_site() {
+        assert_eq!(BRAVE_DOWNLOAD_URL, "https://brave.com/pt-br/download/");
+    }
 
     #[test]
     fn silent_login_recovery_is_one_shot_until_online_cycle_resets_it() {

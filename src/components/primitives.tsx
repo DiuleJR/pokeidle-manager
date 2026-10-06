@@ -68,13 +68,13 @@ export function Badge({
   return <span className={`badge badge-${tone}`}>{children}</span>
 }
 
-export function EmptyState({ onAdd }: { onAdd: () => void }) {
+export function EmptyState({ onAdd, disabled = false }: { onAdd: () => void; disabled?: boolean }) {
   return (
     <div className="empty-state">
       <div className="empty-orb">◌</div>
       <h2>Nenhuma conta cadastrada</h2>
       <p>Conecte uma conta pelo Brave para começar a acompanhar sua farm.</p>
-      <Button onClick={onAdd}>+ Adicionar conta</Button>
+      <Button onClick={onAdd} disabled={disabled}>{disabled ? 'Abrindo navegador…' : '+ Adicionar conta'}</Button>
     </div>
   )
 }
