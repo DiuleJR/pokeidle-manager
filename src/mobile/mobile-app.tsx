@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { formatHuntElapsed } from '../dashboard-time'
 import { UiIcon, type UiIconName } from '../components/UiIcon'
+import browserIcon from '../assets/pokeidle-theme/backgrounds/icon-browser.png'
 import type {
   MobileAccount,
   MobileInventoryPage,
@@ -140,14 +141,29 @@ function useMobileSnapshot(mockMode: boolean) {
 }
 
 function CurrencyIcon({ kind }: { kind: 'gold' | 'orbs' }) {
-  return <UiIcon name={kind === 'gold' ? 'gold' : 'gem'} className={`mobile-currency-icon ${kind === 'gold' ? 'gold-icon' : 'orb-icon'}`} />
+  return kind === 'gold' ? (
+    <svg aria-hidden="true" className="mobile-currency-icon gold-icon" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M14.6 8.8c-.5-.6-1.3-.9-2.4-.9-1.5 0-2.5.7-2.5 1.8 0 2.8 5.2 1.1 5.2 4 0 1.2-1.1 2-2.8 2-1.2 0-2.2-.4-2.8-1.1M12 6.4v11.2" />
+    </svg>
+  ) : (
+    <svg aria-hidden="true" className="mobile-currency-icon orb-icon" viewBox="0 0 24 24">
+      <path d="m12 2.8 8.6 6.3-3.3 10.1H6.7L3.4 9.1 12 2.8Z" />
+      <path d="m3.8 9.2 8.2 2.4 8.2-2.4M12 11.6v7.2" />
+    </svg>
+  )
 }
 
 function MobileGlyph({ kind }: { kind: 'xp' | 'accounts' | 'potion' | 'ball' | 'hunt' | 'safe' }) {
-  const iconByKind: Record<typeof kind, UiIconName> = {
-    xp: 'xp', accounts: 'accounts', potion: 'potion', ball: 'capture', hunt: 'hunt', safe: 'shield',
+  const paths: Record<typeof kind, ReactNode> = {
+    xp: <path d="m13.2 2.5-8 10h5.6l-.8 9 8-11h-5.5l.7-8Z" />,
+    accounts: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.7a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8m1 3.3a4.5 4.5 0 0 1 3.5 4.4V20" /></>,
+    potion: <><path d="M9 3h6M10 3v5l-4.8 7.2A3.2 3.2 0 0 0 7.9 20h8.2a3.2 3.2 0 0 0 2.7-4.8L14 8V3" /><path d="M8 14h8" /></>,
+    ball: <><circle cx="12" cy="12" r="9" /><path d="M3.4 10h17.2M3.4 14h17.2" /><circle cx="12" cy="12" r="2.4" /></>,
+    hunt: <><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /><path d="M12 1v3M12 20v3M1 12h3m16 0h3" /></>,
+    safe: <><path d="M12 2.5 20 6v5.2c0 5-3.4 8.3-8 10.3-4.6-2-8-5.3-8-10.3V6l8-3.5Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></>,
   }
-  return <UiIcon name={iconByKind[kind]} className={'mobile-glyph glyph-' + kind} />
+  return <svg className={'mobile-glyph glyph-' + kind} aria-hidden="true" viewBox="0 0 24 24">{paths[kind]}</svg>
 }
 
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
@@ -204,8 +220,7 @@ function AccountCard({
           </span>
         </div>
         <span className={'mobile-owner owner-' + account.connectionOwner}>
-          {account.connectionOwner === 'browser' && <UiIcon name="browser" />}
-          {account.connectionOwner === 'background' && <UiIcon name="background" />}
+          {account.connectionOwner === 'browser' && <img src={browserIcon} alt="" aria-hidden="true" />}
           {ownerLabels[account.connectionOwner]}
         </span>
       </header>
@@ -295,7 +310,7 @@ function AccountCard({
           </span>
           <span className="hunt-label">Hunt</span>
           <strong>{account.huntName ?? 'Sem hunt'}</strong>
-          {huntTime && <time className="hunt-timer"><UiIcon name="clock" />{huntTime}</time>}
+          {huntTime && <time className="hunt-timer">◷ {huntTime}</time>}
         </div>
         <div className="mobile-wallet" aria-label="Carteira">
           <span>
@@ -508,8 +523,7 @@ function AutomationPage({
                 <h2>{account.displayName}</h2>
               </div>
               <span className="owner-pill">
-                {account.connectionOwner === 'browser' && <UiIcon name="browser" />}
-                {account.connectionOwner === 'background' && <UiIcon name="background" />}
+                {account.connectionOwner === 'browser' && <img src={browserIcon} alt="" aria-hidden="true" />}
                 {account.connectionOwner === 'background'
                   ? 'Segundo plano'
                   : account.connectionOwner === 'browser'
@@ -780,7 +794,7 @@ function PokemonSpriteView({
           }}
         />
       ) : (
-        (fallback ?? <UiIcon name="pokemon" className="pokemon-sprite-fallback" />)
+        (fallback ?? <span className="mobile-pokemon-placeholder">?</span>)
       )}
     </span>
   )
@@ -1150,13 +1164,13 @@ function InventoryPage({ accounts, mockMode }: { accounts: MobileAccount[]; mock
                           loading="lazy"
                         />
                       ) : item.category === 'ball' ? (
-                        <UiIcon name="capture" />
+                        <span aria-hidden="true">◉</span>
                       ) : item.category === 'potion' ? (
-                        <UiIcon name="potion" />
+                        <span aria-hidden="true">⚗</span>
                       ) : item.category === 'stone' ? (
-                        <UiIcon name="gem" />
+                        <span aria-hidden="true">◆</span>
                       ) : (
-                        <UiIcon name="inventory" />
+                        <span aria-hidden="true">▣</span>
                       )}
                     </span>
                     <span className="inventory-row-name">
@@ -1584,7 +1598,7 @@ function MarketPage({
                   size={32}
                   disabled={mockMode}
                   lazy
-                  fallback={<UiIcon name="pokemon" />}
+                  fallback={<span className="mobile-pokemon-placeholder">◉</span>}
                 />
               ) : (
                 <MarketItemArtwork
@@ -1653,7 +1667,7 @@ function MarketItemArtwork({
 }) {
   return (
     <span className={className} aria-hidden="true">
-      {assetPath ? <img src={itemAssetUrl(assetPath)} alt="" /> : <UiIcon name="market" />}
+      {assetPath ? <img src={itemAssetUrl(assetPath)} alt="" /> : <span aria-hidden="true">🛒</span>}
     </span>
   )
 }

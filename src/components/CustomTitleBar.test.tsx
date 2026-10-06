@@ -64,6 +64,6 @@ describe('CustomTitleBar', () => {
     expect(windowActions.toggleMaximize).not.toHaveBeenCalled()
     expect(windowActions.close).toHaveBeenCalledTimes(1)
     expect(maximize.disabled).toBe(true)
-    expect(host.querySelectorAll('.titlebar-controls img[src^="data:image/svg+xml"]')).toHaveLength(3)
+    expect(host.querySelectorAll('.titlebar-controls svg')).toHaveLength(3)
   })
 })

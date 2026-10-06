@@ -1,7 +1,17 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, Button, Card } from '../components/primitives'
-import { UiIcon } from '../components/UiIcon'
+import headerScenery from '../assets/pokeidle-theme/backgrounds/shared-header-scenery.png'
+import titleboard from '../assets/pokeidle-theme/backgrounds/shared-header-titleboard.png'
+import hpIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-hp.png'
+import attackIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-attack.png'
+import defenseIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-defense.png'
+import specialAttackIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-special-attack.png'
+import speedIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-speed.png'
+import vipBonusIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-vip.png'
+import guildBonusIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-guild.png'
+import guildBoostIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-guild-boost.png'
+import twitchBonusIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-twitch.webp'
 import { useGameItemCatalog } from '../inventory/assets'
 import { PokemonAsset } from '../inventory/asset-components'
 import { selectVisibleAccounts, useAppStore } from '../stores/app-store'
@@ -10,14 +20,20 @@ import { estimateHunts, hasCompleteCalculationData, readHuntReference, type Hunt
 
 type Ranking = 'trainer' | 'pokemon' | 'gold'
 const activePokemonStats = [
-  { key: 'hp', label: 'HP', icon: 'hp' },
-  { key: 'atk', label: 'ATK', icon: 'attack' },
-  { key: 'def', label: 'DEF', icon: 'defense' },
-  { key: 'spAtk', label: 'SP. ATK', icon: 'specialAttack' },
-  { key: 'spDef', label: 'SP. DEF', icon: 'specialDefense' },
-  { key: 'speed', label: 'SPD', icon: 'speed' },
+  { key: 'hp', label: 'HP', icon: hpIcon },
+  { key: 'atk', label: 'ATK', icon: attackIcon },
+  { key: 'def', label: 'DEF', icon: defenseIcon },
+  { key: 'spAtk', label: 'SP. ATK', icon: specialAttackIcon },
+  { key: 'spDef', label: 'SP. DEF', icon: defenseIcon },
+  { key: 'speed', label: 'SPD', icon: speedIcon },
 ] as const
-const bonusIcons = { vip: 'vip', guild: 'guild', 'guild-boost': 'guildBoost', twitch: 'broadcast', event: 'event' } as const
+type BonusKey = 'vip' | 'guild' | 'guild-boost' | 'twitch' | 'event'
+const bonusIcons: Partial<Record<BonusKey, string>> = {
+  vip: vipBonusIcon,
+  guild: guildBonusIcon,
+  'guild-boost': guildBoostIcon,
+  twitch: twitchBonusIcon,
+}
 const compact = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
 const full = new Intl.NumberFormat('pt-BR')
 const percent = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
@@ -38,7 +54,6 @@ function requestHuntReference() {
   return huntReferenceRequest
 }
 
-type BonusKey = 'vip' | 'guild' | 'guild-boost' | 'twitch' | 'event'
 type BonusRow = { key: BonusKey; label: string; percentage: number; active: boolean }
 
 function activeBonusRows(account: AccountView, kind: Ranking): BonusRow[] {
@@ -142,7 +157,9 @@ export function WhereToHunt() {
   return (
     <main className="page where-hunt-page">
       <header className="shared-page-header">
+        <img className="shared-page-header-scenery" src={headerScenery} alt="" aria-hidden="true" />
         <div className="shared-page-header-plaque">
+          <img src={titleboard} alt="" aria-hidden="true" />
           <div className="shared-page-header-copy"><h1>Onde Caçar</h1></div>
         </div>
         <div className="shared-page-header-actions where-hunt-account">
@@ -188,7 +205,7 @@ export function WhereToHunt() {
                   >
                     {activePokemonStats.map(({ key, label, icon }) => (
                       <div className={`where-hunt-iv-card where-hunt-iv-card-${key}`} key={key}>
-                        <span className={`where-hunt-iv-icon where-hunt-iv-icon-${key}`} aria-hidden="true"><UiIcon name={icon} /></span>
+                        <span className={`where-hunt-iv-icon where-hunt-iv-icon-${key}`} aria-hidden="true"><img src={icon} alt="" /></span>
                         <small>{label}</small>
                         <strong>{account.activePokemon?.ivs?.[key] ?? '—'}</strong>
                       </div>
@@ -198,11 +215,11 @@ export function WhereToHunt() {
               ) : <p>Não foi possível identificar o Pokémon ativo nesta conta.</p>}
             </Card>
             <Card className="where-hunt-bonus-card">
-              <h2 className="where-hunt-bonus-title"><span aria-hidden="true"><UiIcon name="level" /></span>BÔNUS CONSIDERADOS<span aria-hidden="true"><UiIcon name="level" /></span></h2>
+              <h2 className="where-hunt-bonus-title"><span aria-hidden="true">✦</span>BÔNUS CONSIDERADOS<span aria-hidden="true">✦</span></h2>
               <div className="where-hunt-bonus-list" role="list" aria-label="Bônus de XP">
                 {xpBonuses.map((bonus) => (
                   <div className="where-hunt-bonus-row" data-bonus={bonus.key} data-active={bonus.active} role="listitem" key={bonus.key}>
-                    <span className="where-hunt-bonus-icon" aria-hidden="true"><UiIcon name={bonusIcons[bonus.key]} /></span>
+                    <span className="where-hunt-bonus-icon" aria-hidden="true">{bonusIcons[bonus.key] ? <img src={bonusIcons[bonus.key]} alt="" /> : '✦'}</span>
                     <span className="where-hunt-bonus-name">{bonus.label}</span>
                     <strong className="where-hunt-bonus-value" aria-label={bonus.active ? `+${percent.format(bonus.percentage)}% ativo` : 'Desativado'}>
                       {bonus.active ? `+${percent.format(bonus.percentage)}%` : 'OFF'}

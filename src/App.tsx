@@ -2,7 +2,6 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { CustomTitleBar } from './components/CustomTitleBar'
-import { UiIcon } from './components/UiIcon'
 import { Badge, Button, Card, EmptyState, Switch } from './components/primitives'
 import { ItemAssetResolver, type GameItemCatalog, useGameItemCatalog } from './inventory/assets'
 import { ItemAsset, PokemonAsset } from './inventory/asset-components'
@@ -10,6 +9,25 @@ import { mergeMarketCatalog } from './inventory/market-catalog'
 import { formatHuntElapsed } from './dashboard-time'
 import { POKEMON_GRID_ROW_HEIGHT, pokemonGridWindow } from './inventory/virtual-grid'
 import { WhereToHunt } from './hunts/WhereToHunt'
+import browserModeIcon from './assets/pokeidle-theme/backgrounds/icon-browser.png'
+import backgroundModeIcon from './assets/pokeidle-theme/backgrounds/icon-background.png'
+import huntIcon from './assets/pokeidle-theme/backgrounds/icon-hunt.png'
+import accountHuntIcon from './assets/pokeidle-theme/backgrounds/icon-account-hunt.svg'
+import accountMapIcon from './assets/pokeidle-theme/backgrounds/icon-account-map.svg'
+import accountLevelIcon from './assets/pokeidle-theme/backgrounds/icon-level.png'
+import gameGoldIcon from './assets/pokeidle-theme/backgrounds/icon-gold.png'
+import diamondCurrencyIcon from './assets/pokeidle-theme/backgrounds/icon-diamond.png'
+import vipIcon from './assets/pokeidle-theme/backgrounds/icon-vip.svg'
+import sidebarLogo from './assets/pokeidle-theme/backgrounds/sidebar-brand.png'
+import sidebarWallpaper from './assets/pokeidle-theme/backgrounds/sidebar-wallpaper.png'
+import sharedHeaderScenery from './assets/pokeidle-theme/backgrounds/shared-header-scenery.png'
+import sharedHeaderTitleboard from './assets/pokeidle-theme/backgrounds/shared-header-titleboard.png'
+import menuDashboardIcon from './assets/pokeidle-theme/backgrounds/menu-dashboard.png'
+import menuHuntIcon from './assets/pokeidle-theme/backgrounds/menu-hunt.png'
+import menuAutomationIcon from './assets/pokeidle-theme/backgrounds/menu-automation.png'
+import menuInventoryIcon from './assets/pokeidle-theme/backgrounds/menu-inventory.png'
+import menuMarketIcon from './assets/pokeidle-theme/backgrounds/menu-market.png'
+import menuSettingsIcon from './assets/pokeidle-theme/backgrounds/menu-settings.png'
 import {
   aggregateItems,
   depotPokemon,
@@ -38,23 +56,25 @@ import {
 } from './real-account'
 
 const pages: Page[] = ['Dashboard', 'Onde Caçar', 'Automações', 'Inventários', 'Mercado', 'Configurações']
-const sidebarNavIcons: Record<Page, 'dashboard' | 'automation' | 'inventory' | 'market' | 'hunt' | 'settings'> = {
-  Dashboard: 'dashboard',
-  Automações: 'automation',
-  Inventários: 'inventory',
-  Mercado: 'market',
-  'Onde Caçar': 'hunt',
-  Configurações: 'settings',
+const sidebarNavIcons: Record<Page, string> = {
+  Dashboard: menuDashboardIcon,
+  Automações: menuAutomationIcon,
+  Inventários: menuInventoryIcon,
+  Mercado: menuMarketIcon,
+  'Onde Caçar': menuHuntIcon,
+  Configurações: menuSettingsIcon,
 }
 
 function SidebarNavIcon({ page }: { page: Page }) {
-  return <UiIcon name={sidebarNavIcons[page]} />
+	return <img src={sidebarNavIcons[page]} alt="" aria-hidden="true" />
 }
 
 function PageHeader({ title, actions }: { title: string; actions?: ReactNode }) {
   return (
     <header className="shared-page-header">
+      <img className="shared-page-header-scenery" src={sharedHeaderScenery} alt="" aria-hidden="true" />
       <div className="shared-page-header-plaque">
+        <img src={sharedHeaderTitleboard} alt="" aria-hidden="true" />
         <div className="shared-page-header-copy">
           <h1>{title}</h1>
         </div>
@@ -117,35 +137,35 @@ const time = (seconds: number) =>
 type DashboardMetricKind = 'xp' | 'gold' | 'accounts' | 'gems'
 
 function DashboardMetricIcon({ kind }: { kind: DashboardMetricKind }) {
-  const iconByKind: Record<DashboardMetricKind, 'xp' | 'gold' | 'accounts' | 'gem'> = {
-    xp: 'xp', gold: 'gold', accounts: 'accounts', gems: 'gem',
-  }
-  return <UiIcon name={iconByKind[kind]} />
+  if (kind === 'accounts') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.2" /><path d="M3.5 19c.5-3.1 2.4-4.8 5.5-4.8s5 1.7 5.5 4.8M14 18.5c.4-2.2 1.8-3.4 4-3.4 1.5 0 2.6.6 3.3 1.8" /></svg>
+  if (kind === 'gems') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 5-7 13L5 8l7-5Z" /><path d="m5 8 7 4 7-4M12 12V3" /></svg>
+  if (kind === 'gold') return <GameGoldIcon />
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13.4 2-8 12h5.2L9.8 22l8.8-12h-5.2L13.4 2Z" /></svg>
 }
 
 function GameGemIcon() {
-  return <UiIcon name="gem" className="game-gem-icon" />
+  return <img className="game-gem-icon" src="https://pokeidle.io/img/moeda-gema.png" alt="" aria-hidden="true" />
 }
 
 function GameGoldIcon({ className = '' }: { className?: string }) {
   return (
-    <UiIcon name="gold" className={`game-gold-icon ${className}`.trim()} />
+    <img className={`game-gold-icon ${className}`.trim()} src={gameGoldIcon} alt="" aria-hidden="true" />
   )
 }
 
 type AccountInfoIconKind = 'level' | 'gold' | 'gems' | 'diamonds' | 'vip' | 'map' | 'hunt'
 
 function AccountInfoIcon({ kind }: { kind: AccountInfoIconKind }) {
-  const icons: Record<AccountInfoIconKind, 'level' | 'gold' | 'gem' | 'diamond' | 'vip' | 'map' | 'hunt'> = {
-    level: 'level',
-    gold: 'gold',
-    gems: 'gem',
-    diamonds: 'diamond',
-    vip: 'vip',
-    map: 'map',
-    hunt: 'hunt',
+  const icons: Record<AccountInfoIconKind, string> = {
+    level: accountLevelIcon,
+    gold: gameGoldIcon,
+    gems: 'https://pokeidle.io/img/moeda-gema.png',
+    diamonds: diamondCurrencyIcon,
+    vip: vipIcon,
+    map: accountMapIcon,
+    hunt: accountHuntIcon,
   }
-  return <UiIcon name={icons[kind]} className={`detail-account-info-icon detail-account-info-icon-${kind}`} />
+  return <img src={icons[kind]} alt="" aria-hidden="true" className={`detail-account-info-icon detail-account-info-icon-${kind}`} />
 }
 
 function catalogItemByName(catalog: GameItemCatalog, name: string) {
@@ -216,10 +236,10 @@ function MarketHistoryAsset({
   if (entry.kind === 'diamante')
     return (
       <span className="market-history-diamond" role="img" aria-label="Diamante">
-        <UiIcon name="diamond" />
+        <img src={diamondCurrencyIcon} alt="" aria-hidden="true" />
       </span>
     )
-  return <UiIcon name="market" className="market-history-kind" />
+  return <span className="market-history-kind" aria-hidden="true">🛒</span>
 }
 
 function marketHistoryLabel(entry: MarketHistoryEntry) {
@@ -243,17 +263,13 @@ function MarketCurrencyIcon({ currency }: { currency: MarketCurrency }) {
 }
 
 function AutomationIcon({ kind }: { kind: AutomationKind }) {
-  const iconByAutomation: Record<AutomationKind, 'potion' | 'revive' | 'capture' | 'repeat' | 'sale' | 'return' | 'buyPotion' | 'buyBall'> = {
-    autoPotion: 'potion',
-    autoRevive: 'revive',
-    ballUntilCapture: 'capture',
-    ballContinuous: 'repeat',
-    autoVendaLoot: 'sale',
-    returnToHunt: 'return',
-    autoBuyPotion: 'buyPotion',
-    autoBuyBall: 'buyBall',
-  }
-  return <UiIcon name={iconByAutomation[kind]} />
+  const common = { viewBox: '0 0 24 24', 'aria-hidden': true as const }
+  if (kind === 'autoPotion') return <svg {...common}><path d="M9 3h6M10 3v4l-4 5.5A5.2 5.2 0 0 0 10.2 21h3.6a5.2 5.2 0 0 0 4.2-8.5L14 7V3" /><path d="M8.2 15h7.6M12 12v6M9 15h6" /></svg>
+  if (kind === 'autoRevive') return <svg {...common}><path d="M12 21s-7-4.4-7-10.4C5 7.7 7 6 9.5 6c1.4 0 2.2.6 2.5 1.3C12.3 6.6 13.1 6 14.5 6 17 6 19 7.7 19 10.6 19 16.6 12 21 12 21Z" /><path d="M12 9v5M9.5 11.5h5" /></svg>
+  if (kind === 'ballUntilCapture') return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M3.7 12h16.6M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z" /></svg>
+  if (kind === 'ballContinuous') return <svg {...common}><path d="M5 8c1.8-2 4.1-3 7-3 4 0 6.8 2 8 5" /><path d="m17 7 3 3-3 3M19 16c-1.8 2-4.1 3-7 3-4 0-6.8-2-8-5" /><path d="m7 17-3-3 3-3" /></svg>
+  if (kind === 'autoVendaLoot' || kind === 'autoBuyPotion' || kind === 'autoBuyBall') return <svg {...common}><path d="M5 7h14l-1 13H6L5 7ZM8 7V4h8v3M9 11h6M9 15h6" /></svg>
+  return <svg {...common}><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.5" /><path d="M4 4v4.5h4.5M12 8v4l2.8 1.8" /></svg>
 }
 
 function AccountCard({
@@ -299,9 +315,9 @@ function AccountCard({
           </div>
         </div>
         <span className={`mode mode-${account.mode}`}>
-          {account.mode === 'browser' && <UiIcon name="browser" className="account-mode-mark" />}
-          {account.mode === 'background' && <UiIcon name="background" className="account-mode-mark" />}
-          {account.mode === 'transitioning' && <UiIcon name="repeat" className="account-mode-mark" />}
+          {account.mode === 'browser' && <img src={browserModeIcon} alt="" aria-hidden="true" className="account-mode-mark" />}
+          {account.mode === 'background' && <img src={backgroundModeIcon} alt="" aria-hidden="true" className="account-mode-mark" />}
+          {account.mode === 'transitioning' && <span className="account-mode-mark" aria-hidden="true">↻</span>}
           {modeFor(account.mode)}
         </span>
       </header>
@@ -367,7 +383,7 @@ function AccountCard({
       </div>
       <footer className="premium-account-footer">
         <div className="premium-account-hunt">
-          <UiIcon name="hunt" className="premium-account-hunt-icon" />
+          <img src={huntIcon} className="premium-account-hunt-icon" alt="" aria-hidden="true" />
           {account.hunt ? (
             <>
               <span>Hunt:</span>
@@ -378,7 +394,7 @@ function AccountCard({
                   aria-label={`Tempo desde a seleção da hunt: ${huntElapsed}`}
                   title={`Tempo desde a seleção confirmada da hunt: ${huntElapsed}`}
                 >
-                  <UiIcon name="clock" />
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8.5" r="5.6" /><path d="M8 5.2v3.5l2.1 1.2M6 1.5h4" /></svg>
                   <span>{huntElapsed}</span>
                 </span>
               )}
@@ -497,7 +513,7 @@ function Dashboard({
   }, [hasHuntTimer])
   // Connection lifecycle is account data, never a route. A diagnostic may
   // occupy this initial empty state only before any account has been created.
-  if (!settings.mockMode && hydrationComplete && !accounts.length && diagnostic)
+  if (startupDebug && !settings.mockMode && hydrationComplete && !accounts.length && diagnostic)
     return (
       <main className="page dashboard empty-page">
         <PageHeader title="Dashboard" />
@@ -609,12 +625,19 @@ type DetailIconKind =
   | 'drop'
 
 function DetailIcon({ kind }: { kind: DetailIconKind }) {
-  const iconByKind: Record<DetailIconKind, 'account' | 'pokemon' | 'farm' | 'metrics' | 'automation' | 'event' | 'level' | 'gold' | 'gem' | 'map' | 'hunt' | 'capture' | 'drop'> = {
-    account: 'account', pokemon: 'pokemon', farm: 'farm', metrics: 'metrics',
-    automations: 'automation', events: 'event', level: 'level', gold: 'gold',
-    gem: 'gem', map: 'map', hunt: 'hunt', capture: 'capture', drop: 'drop',
-  }
-  return <UiIcon name={iconByKind[kind]} />
+  const common = { viewBox: '0 0 24 24', 'aria-hidden': true as const }
+  if (kind === 'account') return <svg {...common}><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c.8-4.1 3.3-6.2 7.5-6.2s6.7 2.1 7.5 6.2" /></svg>
+  if (kind === 'pokemon' || kind === 'capture') return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z" /></svg>
+  if (kind === 'farm') return <svg {...common}><path d="m4 19 5.5-6 3.5 3 4.8-7L21 19M4 19h17M17.8 9H21v3.2" /></svg>
+  if (kind === 'metrics') return <svg {...common}><path d="M4 20V12M10 20V7M16 20V10M22 20V3" /></svg>
+  if (kind === 'automations') return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.3 15.1 21 16l-1.6 2.8-1.8-.6a7.8 7.8 0 0 1-2.3 1.3L15 21h-3l-.4-1.5a7.8 7.8 0 0 1-2.3-1.3l-1.8.6L6 16l1.7-.9a8.2 8.2 0 0 1 0-2.2L6 12l1.5-2.8 1.8.6a7.8 7.8 0 0 1 2.3-1.3L12 7h3l.3 1.5a7.8 7.8 0 0 1 2.3 1.3l1.8-.6L21 12l-1.7.9a8.2 8.2 0 0 1 0 2.2Z" /></svg>
+  if (kind === 'events') return <svg {...common}><path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4M8 2v4M16 2v4" /></svg>
+  if (kind === 'level') return <svg {...common}><path d="m12 3 2.5 5.2 5.5.8-4 3.9.9 5.5-4.9-2.7-4.9 2.7.9-5.5-4-3.9 5.5-.8L12 3Z" /></svg>
+  if (kind === 'gold') return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M14.6 8.5c-.6-.5-1.4-.8-2.5-.8-1.4 0-2.5.8-2.5 2 0 1.4 1.1 1.8 2.5 2.1 1.5.3 2.6.7 2.6 2.1 0 1.2-1 2.1-2.7 2.1-1.2 0-2.3-.4-3.1-1.1M12 6.4v11.2" /></svg>
+  if (kind === 'gem') return <svg {...common}><path d="m12 3 7 5-7 13L5 8l7-5ZM5 8h14M12 3v18" /></svg>
+  if (kind === 'map') return <svg {...common}><path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2V6ZM9 4v14M15 6v14" /></svg>
+  if (kind === 'drop') return <svg {...common}><path d="M12 3c3.3 4 5 6.6 5 9.3a5 5 0 0 1-10 0C7 9.6 8.7 7 12 3Z" /></svg>
+  return <svg {...common}><path d="M4 18 20 6M7 5h6v6M17 19h-6v-6" /></svg>
 }
 
 function DetailCardHeading({ icon, children }: { icon: DetailIconKind; children: ReactNode }) {
@@ -746,9 +769,9 @@ function AccountDetail({ account }: { account: AccountView }) {
                 <div className="detail-statuses">
                   <Badge tone={toneFor(account.status)}>{statusFor(account.status)}</Badge>
                   <span className={`detail-mode detail-mode-${account.mode}`}>
-                    {account.mode === 'browser' && <UiIcon name="browser" className="account-mode-mark" />}
-                    {account.mode === 'background' && <UiIcon name="background" className="account-mode-mark" />}
-                    {account.mode === 'transitioning' && <UiIcon name="repeat" className="account-mode-mark" />}
+                    {account.mode === 'browser' && <img src={browserModeIcon} alt="" aria-hidden="true" className="account-mode-mark" />}
+                    {account.mode === 'background' && <img src={backgroundModeIcon} alt="" aria-hidden="true" className="account-mode-mark" />}
+                    {account.mode === 'transitioning' && <span className="account-mode-mark" aria-hidden="true">↻</span>}
                     {modeFor(account.mode)}
                   </span>
                   <span className="detail-uptime">◷ {time(account.onlineSeconds)}</span>
@@ -810,7 +833,7 @@ function AccountDetail({ account }: { account: AccountView }) {
                   <strong>{account.nick}</strong>
                   {account.vip && (
                     <span className="detail-account-vip-badge">
-                      <UiIcon name="vip" />
+                      <img src={vipIcon} alt="" aria-hidden="true" />
                       VIP
                     </span>
                   )}
@@ -2146,13 +2169,13 @@ function Inventory() {
                         className="lock-state"
                         aria-label={entry.locked ? 'Protegido' : 'Não protegido'}
                       >
-                        {entry.locked && <UiIcon name="shield" />}
+                        {entry.locked && <span aria-hidden="true">♢</span>}
                       </span>
                       <div className="pokemon-sprite">
                         <PokemonAsset pokemon={entry} catalog={catalog} />
                       </div>
                       <h3>
-                        {entry.shiny && <><UiIcon name="level" className="market-shiny-mark" />{' '}</>}
+                        {entry.shiny && <><span className="market-shiny-mark" aria-hidden="true">✨</span>{' '}</>}
                         {entry.name}
                       </h3>
                       <p>
@@ -3134,7 +3157,7 @@ function BootScreen({ status = 'Iniciando…' }: { status?: string }) {
   return (
     <main className="boot-screen" role="status" aria-live="polite">
       <span className="boot-brand-mark" aria-hidden="true">
-        <UiIcon name="pokemon" />
+        ◉
       </span>
       <span className="boot-brand-name">POKEIDLE MANAGER</span>
       <span className="boot-spinner" aria-hidden="true" />
@@ -3150,8 +3173,7 @@ function PreparingShell() {
       <div className="app-shell startup-shell">
         <aside>
           <div className="brand">
-            <span className="sidebar-brand-mark" aria-hidden="true">P</span>
-            <span className="sidebar-brand-copy">Pokeidle <small>Manager</small></span>
+            <img className="sidebar-brand-art" src={sidebarLogo} alt="Pokeidle Manager" />
           </div>
           <nav aria-label="Navegação">
             {pages.map((item) => (
@@ -3166,7 +3188,7 @@ function PreparingShell() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-wallpaper" aria-hidden="true" />
+          <div className="sidebar-wallpaper" aria-hidden="true"><img src={sidebarWallpaper} alt="" /></div>
           <footer>
             <span className="pulse" /> Núcleo local
           </footer>
@@ -3655,8 +3677,7 @@ export default function App() {
       <div className="app-shell">
         <aside>
           <div className="brand">
-            <span className="sidebar-brand-mark" aria-hidden="true">P</span>
-            <span className="sidebar-brand-copy">Pokeidle <small>Manager</small></span>
+            <img className="sidebar-brand-art" src={sidebarLogo} alt="Pokeidle Manager" />
           </div>
           <nav>
             {pages.map((item) => (
@@ -3675,7 +3696,7 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-wallpaper" aria-hidden="true" />
+          <div className="sidebar-wallpaper" aria-hidden="true"><img src={sidebarWallpaper} alt="" /></div>
           <footer>
             <span className="pulse" /> Núcleo local
           </footer>

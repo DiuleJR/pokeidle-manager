@@ -32,42 +32,21 @@
   position: relative;
   flex: 0 0 auto;
   width: 100%;
-  min-height: 74px;
-  padding: 12px 16px;
+  aspect-ratio: 268 / 151;
+  min-height: 0;
+  padding: 0;
   overflow: hidden;
-  border-bottom: 1px solid #e09a5938;
-  background: linear-gradient(145deg, #342331, #201720 78%);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.app-shell .sidebar-brand-mark {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #d49a56;
-  border-radius: 11px 4px 11px 4px;
-  color: #ffe5a2;
-  background: linear-gradient(145deg, #58402d, #271d27 65%);
-  box-shadow: inset 0 0 0 3px #d49a561c, 0 3px #130e14;
-  font: 900 1.35rem/1 'Segoe UI', sans-serif;
-  letter-spacing: -0.08em;
-  text-shadow: 0 1px #22151a;
-}
-
-.app-shell .sidebar-brand-copy {
-  color: #f7dfbc;
-  font: 900 0.95rem/1.05 'Segoe UI', sans-serif;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
-}
-
-.app-shell .sidebar-brand-copy small {
+.app-shell .sidebar-brand-art {
   display: block;
-  margin-top: 4px;
-  color: #c99a70;
-  font: 700 0.58rem/1 'Cascadia Mono', Consolas, monospace;
-  letter-spacing: 0.21em;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .app-shell .brand .game-brand-ball,
@@ -154,6 +133,13 @@
   display: block;
 }
 
+.app-shell .sidebar-nav-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
 
 .app-shell > aside .sidebar-wallpaper {
   position: relative;
@@ -162,21 +148,15 @@
   width: 100%;
   overflow: hidden;
   border-top: 2px solid #a05a38;
-  background:
-    radial-gradient(ellipse at 22% 82%, #d19a5552 0 1px, transparent 2px),
-    radial-gradient(ellipse at 72% 31%, #e3bd8a2c 0 1px, transparent 2px),
-    radial-gradient(ellipse at 44% 58%, #a9734b29 0 2px, transparent 3px),
-    linear-gradient(155deg, #30232c, #1b171e 72%);
+  background: #162538;
 }
 
-.app-shell > aside .sidebar-wallpaper::after {
-  position: absolute;
-  inset: 18% 12%;
-  border: 1px solid #d8a15a2e;
-  border-radius: 44% 56% 48% 52%;
-  content: '';
-  transform: rotate(-11deg);
-  pointer-events: none;
+.app-shell > aside .sidebar-wallpaper img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left center;
 }
 
 .app-shell .sidebar-nav-label {
@@ -238,8 +218,9 @@
   border-bottom: 4px solid var(--game-wood-light);
   border-radius: 0;
   background:
-    radial-gradient(ellipse at 76% 50%, #dfaa5b18, transparent 38%),
-    linear-gradient(120deg, #2b1d29, #1b1720 68%, #29202a);
+    linear-gradient(90deg, #25162220 0%, #2015220c 45%, transparent 75%, #24152212 100%),
+    url('./backgrounds/dashboard-scenery.png') center / auto 100% no-repeat,
+    url('./backgrounds/header-scenery.webp') center 66% / cover no-repeat;
   box-shadow: inset 0 2px #ffc77b66, inset 0 -2px #23121a;
 }
 
@@ -254,11 +235,12 @@
   width: 418px;
   height: 91px;
   min-width: 0;
-  padding: 14px 18px;
-  border: 1px solid #aa7049;
-  border-radius: 8px 3px 8px 3px;
-  background: linear-gradient(120deg, #432a32, #281e29 70%, #35242d);
-  box-shadow: inset 0 0 0 3px #c2864a18, 0 3px #171119;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: url('./backgrounds/dashboard-titleboard.png') center / 100% 100% no-repeat;
+  box-shadow: none;
+  color: transparent;
 }
 
 .dashboard .dashboard-hero-copy::before,
@@ -268,12 +250,12 @@
 
 .dashboard .dashboard-hero-copy h1,
 .dashboard .dashboard-hero-copy .dashboard-hero-subtitle {
-  position: static;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  clip-path: none;
-  white-space: normal;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .dashboard .dashboard-hero h1 {
@@ -292,19 +274,16 @@
 }
 
 .dashboard .dashboard-hero h1::before {
-  content: 'PM';
+  content: '';
   width: 42px;
   height: 42px;
   flex: 0 0 42px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #d49a56;
-  border-radius: 11px 4px 11px 4px;
-  color: #ffe5a2;
-  background: linear-gradient(145deg, #58402d, #271d27 65%);
-  box-shadow: inset 0 0 0 3px #d49a561c, 0 3px #171119;
-  font: 800 0.75rem/1 'Cascadia Mono', Consolas, monospace;
-  text-shadow: none;
+  border: 4px solid #582c26;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #fff4c8 0 16%, #642d2b 17% 25%, transparent 26%),
+    linear-gradient(180deg, #ef5347 0 45%, #582c26 45% 56%, #f9eed0 56% 100%);
+  box-shadow: inset 0 2px #ffffffab, 0 3px #481f23;
 }
 
 .dashboard .dashboard-hero-subtitle {
@@ -477,8 +456,8 @@
 .dashboard .account-pokemon-visual {
   border-radius: 5px;
   background:
-    radial-gradient(ellipse at 50% 74%, #c48c4920, transparent 46%),
-    linear-gradient(165deg, #2b222a, #17151b 58%, #262029);
+    linear-gradient(180deg, #15121a22 0%, #20162308 58%, #20152276 100%),
+    url('./backgrounds/pokemon-battle-backdrop.png') center / 100% 100% no-repeat;
 }
 
 .dashboard .premium-account-card .account-pokemon-visual > :is(.pokemon-asset, .pokemon-asset-frame) {
@@ -549,8 +528,8 @@
   }
 
   .app-shell > aside .brand {
-    width: 100%;
-    align-self: stretch;
+    width: min(100%, 268px);
+    align-self: flex-start;
   }
 
   .app-shell > aside .sidebar-wallpaper {
@@ -560,7 +539,6 @@
   .app-shell .brand {
     align-self: flex-start;
     min-height: 48px;
-    padding: 7px 9px;
   }
 
   .app-shell nav {

@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { UiIcon } from './UiIcon'
+
+function MinimizeIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M5 10.5h10" /></svg>
+}
+
+function MaximizeIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="0.5" /></svg>
+}
+
+function CloseIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+}
 
 export function CustomTitleBar() {
   const [focused, setFocused] = useState(() => document.hasFocus())
@@ -31,7 +42,7 @@ export function CustomTitleBar() {
           type="button"
           onClick={() => void getCurrentWindow().minimize()}
         >
-          <UiIcon name="minimize" />
+          <MinimizeIcon />
         </button>
         <button
           aria-label="Maximizar ou restaurar"
@@ -39,7 +50,7 @@ export function CustomTitleBar() {
           type="button"
           disabled
         >
-          <UiIcon name="maximize" />
+          <MaximizeIcon />
         </button>
         <button
           aria-label="Fechar"
@@ -47,7 +58,7 @@ export function CustomTitleBar() {
           type="button"
           onClick={() => void getCurrentWindow().close()}
         >
-          <UiIcon name="close" />
+          <CloseIcon />
         </button>
       </div>
     </div>

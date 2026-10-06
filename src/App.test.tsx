@@ -9,6 +9,7 @@ import { mockAccounts } from './mocks/accounts'
 import { useAppStore } from './stores/app-store'
 import { useMarketStore } from './stores/market-store'
 import type { MarketSnapshot } from './types'
+import type { IntegrationSnapshot } from './real-account'
 
 const { invokeMock, listenMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -99,6 +100,41 @@ describe('Pokeidle Manager UI', () => {
     expect(invokeMock.mock.calls.some(([command]) => String(command).includes('license'))).toBe(false)
   })
 
+  it('shows the normal empty dashboard instead of startup diagnostics in a production build', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    listenMock.mockResolvedValue(() => {})
+    const diagnostic = {
+      state: 'Aguardando',
+      message: 'Nenhuma integração em andamento.',
+      accountId: null,
+    } as IntegrationSnapshot['diagnostic']
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'app_core_status')
+        return Promise.resolve({ ready: true, error: null })
+      if (command === 'dashboard') return Promise.resolve([])
+      if (command === 'settings_snapshot')
+        return Promise.resolve({
+          minimizeToTray: true,
+          gameUrl: 'https://pokeidle.io/app',
+          startupBrowserConcurrency: 1,
+        })
+      if (command === 'integration_snapshot')
+        return Promise.resolve({ accounts: [], diagnostic } as IntegrationSnapshot)
+      if (command === 'market_snapshot') return Promise.resolve({})
+      return Promise.resolve(null)
+    })
+
+    const host = render()
+    await act(async () => {
+      for (let index = 0; index < 8; index += 1) await Promise.resolve()
+    })
+
+    expect(host.querySelector('.empty-state')).not.toBeNull()
+    expect(host.querySelector('.integration-panel')).toBeNull()
+    expect(host.textContent).not.toContain('INTEGRAÇÃO REAL')
+    expect(host.textContent).toContain('Nenhuma conta cadastrada')
+  })
+
   it('describes the free Community build in Settings without activation controls', () => {
     act(() => useAppStore.getState().setPage('Configurações'))
     const host = render()
@@ -151,8 +187,8 @@ describe('Pokeidle Manager UI', () => {
       const header = host.querySelector<HTMLElement>('.shared-page-header')
 
       expect(header?.querySelector('h1')?.textContent).toBe(page)
-      expect(header?.querySelector('.shared-page-header-scenery')).toBeNull()
-      expect(header?.querySelector('.shared-page-header-plaque > img')).toBeNull()
+      expect(header?.querySelector('.shared-page-header-scenery')).not.toBeNull()
+      expect(header?.querySelector('.shared-page-header-plaque > img')).not.toBeNull()
       expect(header?.querySelector('.shared-page-header-copy p')).toBeNull()
     },
   )
@@ -194,7 +230,7 @@ describe('Pokeidle Manager UI', () => {
     ])
     expect(rows.slice(0, 4).every((row) => {
       const icon = row.querySelector('.where-hunt-bonus-icon')
-      return icon?.getAttribute('aria-hidden') === 'true' && icon.querySelector('img[src^="data:image/svg+xml"]')
+      return icon?.getAttribute('aria-hidden') === 'true' && icon.querySelector('img')
     })).toBe(true)
     expect(host.querySelector('.where-hunt-bonus-title')?.textContent).toContain('BÔNUS CONSIDERADOS')
     const ivCards = [...host.querySelectorAll<HTMLElement>('.where-hunt-iv-card')]
@@ -202,7 +238,7 @@ describe('Pokeidle Manager UI', () => {
     expect(ivCards.map((card) => card.querySelector('small')?.textContent)).toEqual([
       'HP', 'ATK', 'DEF', 'SP. ATK', 'SP. DEF', 'SPD',
     ])
-    expect(ivCards.every((card) => card.querySelector('.where-hunt-iv-icon img[src^="data:image/svg+xml"]'))).toBe(true)
+    expect(ivCards.every((card) => card.querySelector('.where-hunt-iv-icon img'))).toBe(true)
     expect(ivCards.map((card) => card.querySelector('strong')?.textContent)).toEqual([
       '21', '16', '22', '32', '26', '32',
     ])
@@ -502,8 +538,8 @@ describe('Pokeidle Manager UI', () => {
     const accountCard = host.querySelector('.premium-account-card')!
 
     expect(host.querySelector('.shared-page-header-copy .eyebrow')).toBeNull()
-    expect(host.querySelector('.brand .sidebar-brand-mark')?.textContent).toBe('P')
-    expect(host.querySelectorAll('nav .sidebar-nav-icon img[src^="data:image/svg+xml"]')).toHaveLength(6)
+    expect(host.querySelector('.brand .sidebar-brand-art')?.getAttribute('alt')).toBe('Pokeidle Manager')
+    expect(host.querySelectorAll('nav .sidebar-nav-icon img')).toHaveLength(6)
     expect(host.textContent).not.toContain('Sua farm em uma só visão.')
     expect(accountCard.querySelector('.premium-hp-row')?.textContent).toContain('%')
     expect(accountCard.querySelector('.premium-hp-row small')).toBeNull()
@@ -518,8 +554,7 @@ describe('Pokeidle Manager UI', () => {
     expect(footer.textContent).toContain('18')
     expect(footer.querySelectorAll('.premium-account-balance')).toHaveLength(2)
     expect(footer.querySelector('.premium-account-balance-gold .game-gold-icon')).not.toBeNull()
-    expect(footer.querySelector<HTMLImageElement>('.game-gem-icon')?.src).toContain('data:image/svg+xml')
-    expect(footer.querySelector<HTMLImageElement>('.game-gem-icon')?.src).not.toContain('pokeidle.io')
+    expect(footer.querySelector<HTMLImageElement>('.game-gem-icon')?.src).toContain('pokeidle.io/img/moeda-gema.png')
   })
   it('shows and updates a persistent per-account hunt timer', () => {
     vi.useFakeTimers()
@@ -627,7 +662,7 @@ describe('Pokeidle Manager UI', () => {
     )!
     act(() => card.click())
     expect(host.querySelector('.shared-page-header h1')?.textContent).toBe('DemoTrainerTwo')
-    expect(host.querySelector('.shared-page-header-plaque > img')).toBeNull()
+    expect(host.querySelector('.shared-page-header-plaque > img')).not.toBeNull()
     expect(host.querySelector('.shared-page-header .detail-back')?.textContent).toContain(
       'Voltar ao Dashboard',
     )
