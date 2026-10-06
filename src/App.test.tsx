@@ -30,6 +30,33 @@ function render() {
   return host
 }
 
+function setupDesktop(
+  onCommand: (command: string, payload?: Record<string, unknown>) => unknown = () => null,
+  onIntegrationSnapshot: () => unknown = () => ({ accounts: [], diagnostic: { lifecycle: 'closed', state: 'Aguardando', message: '', accountId: null } }),
+) {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+  listenMock.mockResolvedValue(() => {})
+  invokeMock.mockImplementation((command: string, payload?: Record<string, unknown>) => {
+    if (command === 'app_core_status') return Promise.resolve({ ready: true, error: null })
+    if (command === 'dashboard') return Promise.resolve([])
+    if (command === 'market_snapshot') return Promise.resolve({})
+    if (command === 'settings_snapshot') return Promise.resolve({ minimizeToTray: true, gameUrl: 'https://pokeidle.io/app', startupBrowserConcurrency: 1 })
+    if (command === 'integration_snapshot') return Promise.resolve(onIntegrationSnapshot() as IntegrationSnapshot)
+    return onCommand(command, payload)
+  })
+  act(() => {
+    useAppStore.getState().setSetting('mockMode', false)
+    useAppStore.setState({ real: { accounts: [] } })
+    useAppStore.getState().setPage('Dashboard')
+  })
+}
+
+async function flushDesktopEffects() {
+  await act(async () => {
+    for (let index = 0; index < 12; index += 1) await Promise.resolve()
+  })
+}
+
 afterEach(() => {
   act(() => root?.unmount())
   host?.remove()
@@ -1386,5 +1413,182 @@ describe('Pokeidle Manager UI', () => {
     expect(
       [...host.querySelectorAll('button')].some((button) => button.textContent === 'Cancelar'),
     ).toBe(true)
+  })
+  it('shows the missing-Brave dialog without creating an account; Cancel leaves the Dashboard empty', async () => {
+    setupDesktop((command) => command === 'start_real_account' ? Promise.resolve({ status: 'browserNotFound' }) : Promise.resolve(null))
+    const host = render()
+    await flushDesktopEffects()
+    const add = [...host.querySelectorAll('button')].find((button) => button.textContent === '+ Adicionar conta')!
+    await act(async () => { add.click(); await Promise.resolve() })
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Navegador necessário')
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('O Brave não foi encontrado neste computador.')
+    expect(useAppStore.getState().real.accounts).toHaveLength(0)
+    expect(host.querySelectorAll('.premium-account-card')).toHaveLength(0)
+    expect(invokeMock.mock.calls.filter(([command]) => command === 'start_real_account')).toHaveLength(1)
+    await act(async () => host.querySelector<HTMLButtonElement>('[role="dialog"] button:last-child')!.click())
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+    expect(useAppStore.getState().real.accounts).toHaveLength(0)
+  })
+  it('uses the fixed Brave download command and retries the atomic add flow without restarting', async () => {
+    let attempts = 0
+    setupDesktop((command) => {
+      if (command === 'start_real_account') {
+        attempts += 1
+        return Promise.resolve(attempts < 3
+          ? { status: 'browserNotFound' }
+          : { status: 'started', accountId: 'started-account' })
+      }
+      return Promise.resolve(null)
+    })
+    const host = render()
+    await flushDesktopEffects()
+    const add = [...host.querySelectorAll('button')].find((button) => button.textContent === '+ Adicionar conta')!
+    await act(async () => { add.click(); await Promise.resolve() })
+    await act(async () => {
+      [...host.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === 'Baixar Brave')!.click()
+      await Promise.resolve()
+    })
+    expect(invokeMock.mock.calls.filter(([command]) => command === 'open_brave_download_page')).toHaveLength(1)
+    await act(async () => {
+      [...host.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === 'Tentar novamente')!.click()
+      await Promise.resolve()
+    })
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Brave ainda não foi encontrado.')
+    await act(async () => {
+      [...host.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === 'Tentar novamente')!.click()
+      await Promise.resolve()
+    })
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+    expect(attempts).toBe(3)
+  })
+  it('prevents duplicate add-account commands while the first request is pending', async () => {
+    vi.useFakeTimers()
+    let currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'closed', state: 'Aguardando', message: '', accountId: null, welcomeReceived: false } } as unknown as IntegrationSnapshot
+    let resolveInitialSnapshot: ((snapshot: IntegrationSnapshot) => void) | undefined
+    let snapshotRequests = 0
+    let resolveStart: ((result: { status: 'started'; accountId: string }) => void) | undefined
+    setupDesktop(
+      (command) => command === 'start_real_account'
+        ? new Promise((resolve) => { resolveStart = resolve })
+        : Promise.resolve(null),
+      () => {
+        snapshotRequests += 1
+        return snapshotRequests === 1
+          ? new Promise((resolve) => { resolveInitialSnapshot = resolve })
+          : currentSnapshot
+      },
+    )
+    const host = render()
+    await flushDesktopEffects()
+    const add = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta')!
+    act(() => { add.click(); add.click() })
+    expect(invokeMock.mock.calls.filter(([command]) => command === 'start_real_account')).toHaveLength(1)
+    expect(add.disabled).toBe(true)
+    await act(async () => { resolveStart?.({ status: 'started', accountId: 'pending-account' }) })
+    expect(add.disabled).toBe(true)
+    currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'authenticated', state: 'Conectado', message: '', accountId: 'pending-account', welcomeReceived: true } } as unknown as IntegrationSnapshot
+    await act(async () => {
+      resolveInitialSnapshot?.(currentSnapshot)
+      await Promise.resolve()
+    })
+    expect(add.disabled).toBe(true)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+    expect([...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta')?.disabled).toBe(false)
+  })
+  it('shows a retryable error when a started account fails before authentication', async () => {
+    vi.useFakeTimers()
+    let currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'closed', state: 'Aguardando', message: '', accountId: null, welcomeReceived: false } } as unknown as IntegrationSnapshot
+    let starts = 0
+    setupDesktop((command) => {
+      if (command === 'start_real_account') {
+        starts += 1
+        return Promise.resolve({ status: 'started', accountId: starts === 1 ? 'failed-account' : 'retry-account' })
+      }
+      return Promise.resolve(null)
+    }, () => currentSnapshot)
+    const host = render()
+    await flushDesktopEffects()
+    const add = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta')!
+    await act(async () => { add.click(); await Promise.resolve() })
+    expect(add.disabled).toBe(true)
+
+    currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'error', state: 'Erro', message: 'Não foi possível conectar ao CDP.', accountId: 'failed-account', welcomeReceived: false } } as unknown as IntegrationSnapshot
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Não foi possível conectar ao CDP.')
+    const retry = [...host.querySelectorAll<HTMLButtonElement>('[role="alert"] button')].find((button) => button.textContent === 'Tentar novamente')!
+    expect(retry).toBeDefined()
+    expect([...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta')?.disabled).toBe(false)
+    await act(async () => { retry.click(); await Promise.resolve() })
+    expect(starts).toBe(2)
+    expect([...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === 'Abrindo navegador…')?.disabled).toBe(true)
+  })
+  it('does not unlock on another account’s waiting-login runtime, but accepts matching ready-to-login diagnostics', async () => {
+    vi.useFakeTimers()
+    let starts = 0
+    let currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'closed', state: 'Aguardando', message: '', accountId: null, welcomeReceived: false } } as unknown as IntegrationSnapshot
+    const accountSnapshot = (id: string, diagnosticAccountId = 'some-other-account'): IntegrationSnapshot => ({
+      accounts: [{
+        account: { id, nick: 'Conta nova', card_color: '#3b82f6', status: 'connecting', mode: 'browser', runtime: 'waiting_for_login' },
+        state: { no_centro: false, items: {}, balls: {}, pokemon: [], automation: { potion_ids: [], ball_ids: [], revive_ids: [] } },
+        metrics: { xp_per_hour: 0, gold_per_hour: 0, kills: 0, captures: 0 },
+      }],
+      diagnostic: { lifecycle: 'waitingForLogin', sessionMode: 'interactive', braveFound: true, profileCreated: true, accountPersisted: true, persistentProfile: true, braveStarted: true, cdpPort: 0, cdpEndpointAvailable: true, cdpEndpointAttempts: 1, cdpEndpointLastError: null, browserProduct: 'Brave', browserWsUrlObtained: true, browserWsConnected: true, cdpConnected: true, targetFound: true, targetIdFound: true, sessionCreated: true, managedGamePage: true, pageEnabled: true, pageNavigateSent: true, gameUrlNavigated: true, finalUrl: null, networkEnabled: true, websocketCount: 0, pokeidleSocketDetected: false, websocketDetected: false, helloDetected: false, welcomeReceived: false, wsUrlCaptured: false, sessionMaterialCaptured: false, rustWsConnected: false, rustHelloSent: false, rustWelcomeReceived: false, browserClosed: false, backgroundActive: false, controlledBravePid: null, automaticReloadUsed: false, nick: null, state: 'Aguardando login', message: '', accountId: diagnosticAccountId },
+    } as unknown as IntegrationSnapshot)
+    setupDesktop((command) => {
+      if (command === 'start_real_account') {
+        starts += 1
+        return Promise.resolve({ status: 'started', accountId: `pending-${starts}` })
+      }
+      return Promise.resolve(null)
+    }, () => currentSnapshot)
+    const host = render()
+    await flushDesktopEffects()
+    const add = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta' || button.textContent === 'Abrindo navegador…')!
+    await act(async () => { add().click(); await Promise.resolve() })
+    expect(add().disabled).toBe(true)
+
+    currentSnapshot = accountSnapshot('pending-1')
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+    expect(add().disabled).toBe(true)
+    currentSnapshot = accountSnapshot('pending-1', 'pending-1')
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+    expect(add().disabled).toBe(false)
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+
+    await act(async () => { add().click(); await Promise.resolve() })
+    expect(add().disabled).toBe(true)
+    currentSnapshot = { accounts: [], diagnostic: { ...accountSnapshot('another-account').diagnostic, accountId: 'another-account', lifecycle: 'waitingForLogin', state: 'Aguardando login' } } as unknown as IntegrationSnapshot
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('A conta não apareceu na atualização do navegador.')
+    expect([...host.querySelectorAll<HTMLButtonElement>('[role="alert"] button')].some((button) => button.textContent === 'Tentar novamente')).toBe(true)
+    expect(starts).toBe(2)
+  })
+  it('keeps an existing account/profile when Brave is missing and retries its browser action', async () => {
+    let attempts = 0
+    setupDesktop((command) => {
+      if (command === 'open_account_browser') {
+        attempts += 1
+        return attempts === 1 ? Promise.reject(new Error('BROWSER_NOT_FOUND: missing')) : Promise.resolve(null)
+      }
+      return Promise.resolve(null)
+    })
+    const host = render()
+    await flushDesktopEffects()
+    const account = { ...mockAccounts[0], id: 'existing-profile', mode: 'background' as const }
+    act(() => {
+      useAppStore.getState().setRealAccounts([account])
+      useAppStore.getState().openAccountDetail(account.id)
+    })
+    const open = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === 'Abrir navegador')!
+    await act(async () => { open.click(); await Promise.resolve() })
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(useAppStore.getState().real.accounts[0]?.id).toBe('existing-profile')
+    await act(async () => {
+      [...host.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === 'Tentar novamente')!.click()
+      await Promise.resolve()
+    })
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+    expect(attempts).toBe(2)
+    expect(useAppStore.getState().real.accounts[0]?.id).toBe('existing-profile')
   })
 })

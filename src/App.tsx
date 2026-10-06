@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { CustomTitleBar } from './components/CustomTitleBar'
@@ -56,6 +56,63 @@ import {
 } from './real-account'
 
 const pages: Page[] = ['Dashboard', 'Onde Caçar', 'Automações', 'Inventários', 'Mercado', 'Configurações']
+type BrowserAccountCommand = 'open_account_browser' | 'reconnect_browser_control' | 'login_account'
+type BrowserIntent =
+  | { kind: 'add' }
+  | { kind: 'account'; accountId: string; command: BrowserAccountCommand }
+type BrowserIssue = 'notFound' | 'invalidInstallation' | 'error'
+type StartAccountResult =
+  | { status: 'started'; accountId: string }
+  | { status: 'browserNotFound' | 'invalidInstallation' | 'limitReached' }
+
+function browserIssueFromError(error: unknown): BrowserIssue | null {
+  const message = String(error)
+  if (message.includes('BROWSER_NOT_FOUND')) return 'notFound'
+  if (message.includes('BROWSER_INVALID_INSTALLATION')) return 'invalidInstallation'
+  return null
+}
+
+function BrowserRequiredDialog({ issue, busy, notice, onDownload, onRetry, onCancel }: {
+  issue: BrowserIssue
+  busy: boolean
+  notice: string | null
+  onDownload: () => void
+  onRetry: () => void
+  onCancel: () => void
+}) {
+  const description = issue === 'invalidInstallation'
+    ? 'Foi encontrado um Brave, mas a instalação não parece válida. Reinstale-o pelo site oficial e tente novamente.'
+    : issue === 'error'
+      ? 'Não foi possível verificar o navegador agora. Você pode tentar novamente.'
+      : 'O Pokeidle Manager utiliza o Brave para abrir e gerenciar suas contas. O Brave não foi encontrado neste computador.'
+
+  return (
+    <div className="browser-required-layer" role="presentation">
+      <section className="card browser-required-dialog" role="dialog" aria-modal="true" aria-labelledby="browser-required-title" aria-describedby="browser-required-description">
+        <p className="eyebrow">NAVEGADOR</p>
+        <h2 id="browser-required-title">Navegador necessário</h2>
+        <p id="browser-required-description">{description}</p>
+        {issue === 'notFound' && <p className="browser-required-retry-hint">Instale o Brave e volte aqui para tentar novamente.</p>}
+        {notice && <p className="browser-required-notice" role="status">{notice}</p>}
+        <div className="dialog-actions browser-required-actions">
+          <Button onClick={onDownload} disabled={busy}>Baixar Brave</Button>
+          <Button onClick={onRetry} disabled={busy}>{busy ? 'Verificando…' : 'Tentar novamente'}</Button>
+          <Button onClick={onCancel} disabled={busy}>Cancelar</Button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function AddAccountFeedback({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="browser-action-error" role="alert">
+      <span>{message}</span>
+      {onRetry && <Button onClick={onRetry}>Tentar novamente</Button>}
+    </div>
+  )
+}
+
 const sidebarNavIcons: Record<Page, string> = {
   Dashboard: menuDashboardIcon,
   Automações: menuAutomationIcon,
@@ -494,10 +551,16 @@ function IntegrationPanel({ diagnostic }: { diagnostic: IntegrationDiagnostic })
 function Dashboard({
   diagnostic,
   onStartReal,
+  addAccountBusy,
+  addAccountError,
+  onRetryAddAccount,
   hydrationComplete,
 }: {
   diagnostic: IntegrationDiagnostic | null
   onStartReal: () => void
+  addAccountBusy: boolean
+  addAccountError: string | null
+  onRetryAddAccount: (() => void) | null
   hydrationComplete: boolean
 }) {
   const accounts = useAppStore(selectVisibleAccounts)
@@ -517,8 +580,9 @@ function Dashboard({
     return (
       <main className="page dashboard empty-page">
         <PageHeader title="Dashboard" />
+        {addAccountError && <AddAccountFeedback message={addAccountError} onRetry={onRetryAddAccount ?? undefined} />}
         <IntegrationPanel diagnostic={diagnostic} />
-        <Button onClick={onStartReal} disabled={Boolean(diagnostic.accountId)}>
+        <Button onClick={onStartReal} disabled={addAccountBusy || Boolean(diagnostic.accountId)}>
           + Adicionar conta
         </Button>
       </main>
@@ -527,6 +591,7 @@ function Dashboard({
     return (
       <main className="page dashboard empty-page">
         <PageHeader title="Dashboard" />
+        {addAccountError && <AddAccountFeedback message={addAccountError} onRetry={onRetryAddAccount ?? undefined} />}
         <p className="muted">Carregando contas persistidas...</p>
       </main>
     )
@@ -534,7 +599,8 @@ function Dashboard({
     return (
       <main className="page dashboard empty-page">
         <PageHeader title="Dashboard" />
-        <EmptyState onAdd={settings.mockMode ? addMockAccounts : onStartReal} />
+        {addAccountError && <AddAccountFeedback message={addAccountError} onRetry={onRetryAddAccount ?? undefined} />}
+        <EmptyState onAdd={settings.mockMode ? addMockAccounts : onStartReal} disabled={addAccountBusy && !settings.mockMode} />
       </main>
     )
   const online = accounts.filter((account) => account.status === 'online')
@@ -569,7 +635,7 @@ function Dashboard({
           <div className="dashboard-actions">
             <Button
               onClick={settings.mockMode ? addMockAccounts : onStartReal}
-              disabled={!settings.mockMode && accounts.length >= 4}
+              disabled={addAccountBusy || (!settings.mockMode && accounts.length >= 4)}
             >
               + Adicionar conta
             </Button>
@@ -579,6 +645,7 @@ function Dashboard({
           </div>
         }
       />
+      {addAccountError && <AddAccountFeedback message={addAccountError} onRetry={onRetryAddAccount ?? undefined} />}
       <div className="totals totals-five">
         {totals.map((total) => (
           <Card key={total.label} className={`premium-total premium-total-${total.kind}`}>
@@ -675,7 +742,11 @@ function DetailMeter({
   )
 }
 
-function AccountDetail({ account }: { account: AccountView }) {
+function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
+  account: AccountView
+  onBrowserAction: (accountId: string, command: BrowserAccountCommand) => Promise<void>
+  browserActionBusy: boolean
+}) {
   const back = useAppStore((state) => state.closeAccountDetail)
   const catalog = useGameItemCatalog()
   const [transferError, setTransferError] = useState<string | null>(null)
@@ -686,6 +757,12 @@ function AccountDetail({ account }: { account: AccountView }) {
     command: 'open_account_browser' | 'return_account_to_background' | 'login_account' | 'reconnect_browser_control',
   ) => {
     setTransferError(null)
+    if (command !== 'return_account_to_background') {
+      void onBrowserAction(account.id, command).catch((error: unknown) =>
+        setTransferError(String(error)),
+      )
+      return
+    }
     void invoke(command, { accountId: account.id }).catch((error: unknown) =>
       setTransferError(String(error)),
     )
@@ -781,13 +858,14 @@ function AccountDetail({ account }: { account: AccountView }) {
                     ← Voltar ao Dashboard
                   </Button>
                   {account.mode === 'background' && (
-                    <Button className="detail-open-browser" onClick={() => transfer('open_account_browser')}>
+                    <Button className="detail-open-browser" disabled={browserActionBusy} onClick={() => transfer('open_account_browser')}>
                       Abrir navegador
                     </Button>
                   )}
                   {account.mode === 'browser' && account.status === 'error' && (
                     <Button
                       className="detail-open-browser"
+                      disabled={browserActionBusy}
                       onClick={() => transfer('reconnect_browser_control')}
                     >
                       Reconectar navegador
@@ -799,7 +877,7 @@ function AccountDetail({ account }: { account: AccountView }) {
                     </Button>
                   )}
                   {account.status === 'login_required' && (
-                    <Button onClick={() => transfer('login_account')}>Fazer login</Button>
+                    <Button disabled={browserActionBusy} onClick={() => transfer('login_account')}>Fazer login</Button>
                   )}
                   {transferring && (
                     <Button disabled>{reconnecting ? 'Reconectando...' : 'Transferindo...'}</Button>
@@ -3415,6 +3493,14 @@ export default function App() {
     { setPage, settings, advanceMock, hydratePersistedSettings, setRealAccounts } = useAppStore(),
     accounts = useAppStore(selectVisibleAccounts)
   const [diagnostic, setDiagnostic] = useState<IntegrationDiagnostic | null>(null)
+  const [browserDialog, setBrowserDialog] = useState<{ intent: BrowserIntent; issue: BrowserIssue; busy: boolean; notice: string | null } | null>(null)
+  const [browserActionBusy, setBrowserActionBusy] = useState(false)
+  const [addAccountError, setAddAccountError] = useState<string | null>(null)
+  const browserActionLock = useRef(false)
+  const pendingAddAccountId = useRef<string | null>(null)
+  const integrationSnapshotSequence = useRef(0)
+  const pendingAddSnapshotBaseline = useRef(0)
+  const [canRetryFailedAdd, setCanRetryFailedAdd] = useState(false)
   const [coreStatus, setCoreStatus] = useState<{ ready: boolean; error: string | null }>(() => ({
     ready: !isDesktop,
     error: null,
@@ -3427,6 +3513,59 @@ export default function App() {
     if (startupDebug) console.info('[startup] App first render', performance.now().toFixed(1))
   }
   const appIsReady = !isDesktop || coreStatus.ready
+  const settlePendingAdd = useCallback((snapshot: IntegrationSnapshot, requestSequence: number) => {
+    const pendingId = pendingAddAccountId.current
+    const diagnostic = snapshot.diagnostic
+    if (!pendingId || requestSequence <= pendingAddSnapshotBaseline.current) return
+    const diagnosticMatches = diagnostic.accountId === pendingId
+    const account = snapshot.accounts.find((entry) => entry.account.id === pendingId)?.account
+    const fail = (message: string) => {
+      pendingAddAccountId.current = null
+      browserActionLock.current = false
+      setBrowserActionBusy(false)
+      setAddAccountError(message)
+      setCanRetryFailedAdd(true)
+    }
+    const succeed = () => {
+      pendingAddAccountId.current = null
+      browserActionLock.current = false
+      setBrowserActionBusy(false)
+      setAddAccountError(null)
+      setCanRetryFailedAdd(false)
+    }
+
+    if (diagnosticMatches && (
+      diagnostic.welcomeReceived
+      || diagnostic.lifecycle === 'authenticated'
+      || diagnostic.lifecycle === 'readyForHandoff'
+      || (diagnostic.lifecycle === 'waitingForLogin' && diagnostic.braveStarted && diagnostic.gameUrlNavigated)
+    )) {
+      succeed()
+      return
+    }
+
+    if (diagnosticMatches && (diagnostic.lifecycle === 'error' || diagnostic.lifecycle === 'closed')) {
+      fail(diagnostic.message.trim()
+        ? `Não foi possível concluir a conexão: ${diagnostic.message}`
+        : 'Não foi possível concluir a conexão da conta. Tente novamente.')
+      return
+    }
+
+    if (account) {
+      if (account.runtime === 'browser_connected' || account.status === 'online') {
+        succeed()
+        return
+      }
+      if (account.runtime === 'error' || account.runtime === 'offline' || account.runtime === 'stopping' || account.status === 'error' || account.status === 'offline') {
+        fail('A inicialização do navegador terminou antes de conectar. Tente novamente.')
+      }
+      return
+    }
+
+    if (!diagnosticMatches) {
+      fail('A conta não apareceu na atualização do navegador. Tente novamente.')
+    }
+  }, [])
   useEffect(() => {
     if (!isDesktop) return
     let disposed = false
@@ -3569,11 +3708,13 @@ export default function App() {
     let disposed = false
     let timer: number | undefined
     const refresh = async () => {
+      const requestSequence = ++integrationSnapshotSequence.current
       try {
         const snapshot = await invoke<IntegrationSnapshot>('integration_snapshot')
         if (disposed) return
         setDiagnostic(snapshot.diagnostic)
         setRealAccounts(snapshot.accounts.map(accountFromRuntime))
+        settlePendingAdd(snapshot, requestSequence)
         if (startupDebug && snapshot.diagnostic.welcomeReceived)
           console.info('[startup] first welcome observed', performance.now().toFixed(1))
       } catch {
@@ -3587,56 +3728,91 @@ export default function App() {
       disposed = true
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [appIsReady, isDesktop, setRealAccounts])
-  const startRealAccount = () => {
-    void invoke('start_real_account').catch((error: unknown) =>
-      setDiagnostic((current) => ({
-        ...(current ?? {
-          lifecycle: 'closed',
-          sessionMode: null,
-          braveFound: false,
-          profileCreated: false,
-          braveStarted: false,
-          cdpPort: null,
-          cdpEndpointAvailable: false,
-          cdpEndpointAttempts: 0,
-          cdpEndpointLastError: null,
-          browserProduct: null,
-          browserWsUrlObtained: false,
-          browserWsConnected: false,
-          cdpConnected: false,
-          targetFound: false,
-          targetIdFound: false,
-          sessionCreated: false,
-          managedGamePage: false,
-          pageEnabled: false,
-          pageNavigateSent: false,
-          gameUrlNavigated: false,
-          finalUrl: null,
-          networkEnabled: false,
-          websocketCount: 0,
-          pokeidleSocketDetected: false,
-          websocketDetected: false,
-          helloDetected: false,
-          welcomeReceived: false,
-          wsUrlCaptured: false,
-          sessionMaterialCaptured: false,
-          rustWsConnected: false,
-          rustHelloSent: false,
-          rustWelcomeReceived: false,
-          browserClosed: false,
-          backgroundActive: false,
-          controlledBravePid: null,
-          accountPersisted: false,
-          persistentProfile: false,
-          nick: null,
-          accountId: null,
-          automaticReloadUsed: false,
-        }),
-        state: 'Erro',
-        message: String(error),
-      })),
-    )
+  }, [appIsReady, isDesktop, setRealAccounts, settlePendingAdd])
+  const runBrowserIntent = async (intent: BrowserIntent, isRetry = false) => {
+    if (browserActionLock.current) return
+    let keepAddLockUntilSnapshot = false
+    browserActionLock.current = true
+    setBrowserActionBusy(true)
+    setAddAccountError(null)
+    if (intent.kind === 'add') setCanRetryFailedAdd(false)
+    setBrowserDialog((current) => current ? { ...current, busy: true, notice: null } : current)
+    try {
+      if (intent.kind === 'add') {
+        // The backend resolves Brave before creating any account/profile and guards this boundary against races.
+        const result = await invoke<StartAccountResult>('start_real_account')
+        if (result.status !== 'started') {
+          if (result.status === 'limitReached') {
+            setAddAccountError('O limite de 4 contas foi atingido.')
+            setBrowserDialog(null)
+            return
+          }
+          setBrowserDialog({
+            intent,
+            issue: result.status === 'browserNotFound' ? 'notFound' : 'invalidInstallation',
+            busy: false,
+            notice: isRetry && result.status === 'browserNotFound' ? 'Brave ainda não foi encontrado.' : null,
+          })
+          return
+        }
+        pendingAddAccountId.current = result.accountId
+        pendingAddSnapshotBaseline.current = integrationSnapshotSequence.current
+        keepAddLockUntilSnapshot = true
+        setBrowserDialog(null)
+        return
+      }
+
+      await invoke(intent.command, { accountId: intent.accountId })
+      setBrowserDialog(null)
+    } catch (error) {
+      const issue = browserIssueFromError(error)
+      if (issue) {
+        setBrowserDialog({
+          intent,
+          issue,
+          busy: false,
+          notice: isRetry && issue === 'notFound' ? 'Brave ainda não foi encontrado.' : null,
+        })
+        return
+      }
+      console.warn('[browser] Ação de navegador falhou.', error)
+      if (intent.kind === 'add') {
+        setAddAccountError('Não foi possível iniciar a conexão. Tente novamente.')
+        setCanRetryFailedAdd(true)
+        setBrowserDialog(null)
+      } else {
+        throw error
+      }
+    } finally {
+      if (!keepAddLockUntilSnapshot) {
+        browserActionLock.current = false
+        setBrowserActionBusy(false)
+      }
+      setBrowserDialog((current) => current ? { ...current, busy: false } : current)
+    }
+  }
+  const startRealAccount = () => void runBrowserIntent({ kind: 'add' })
+  const retryFailedAdd = () => {
+    if (browserActionLock.current || !canRetryFailedAdd) return
+    setCanRetryFailedAdd(false)
+    startRealAccount()
+  }
+  const runAccountBrowserAction = (accountId: string, command: BrowserAccountCommand) =>
+    runBrowserIntent({ kind: 'account', accountId, command })
+  const retryBrowserIntent = () => {
+    if (!browserDialog || browserDialog.busy) return
+    void runBrowserIntent(browserDialog.intent, true)
+  }
+  const openBraveDownloadPage = () => {
+    if (browserActionLock.current) return
+    setBrowserDialog((current) => current ? { ...current, notice: null } : current)
+    void invoke('open_brave_download_page').catch((error: unknown) => {
+      console.warn('[browser] Não foi possível abrir a página oficial do Brave.', error)
+      setBrowserDialog((current) => current
+        ? { ...current, notice: 'Não foi possível abrir a página. Acesse o site oficial do Brave pelo navegador.' }
+        : current,
+      )
+    })
   }
   const detail = detailAccountId
     ? accounts.find((account) => account.id === detailAccountId)
@@ -3653,11 +3829,14 @@ export default function App() {
     return <PreparingShell />
   }
   const content = detail ? (
-    <AccountDetail account={detail} />
+    <AccountDetail account={detail} onBrowserAction={runAccountBrowserAction} browserActionBusy={browserActionBusy} />
   ) : page === 'Dashboard' ? (
     <Dashboard
       diagnostic={diagnostic}
       onStartReal={startRealAccount}
+      addAccountBusy={browserActionBusy}
+      addAccountError={addAccountError}
+      onRetryAddAccount={canRetryFailedAdd ? retryFailedAdd : null}
       hydrationComplete={hydrationComplete}
     />
   ) : page === 'Automações' ? (
@@ -3710,6 +3889,16 @@ export default function App() {
           <div className="route-viewport">{content}</div>
         </div>
       </div>
+      {browserDialog && (
+        <BrowserRequiredDialog
+          issue={browserDialog.issue}
+          busy={browserDialog.busy}
+          notice={browserDialog.notice}
+          onDownload={openBraveDownloadPage}
+          onRetry={retryBrowserIntent}
+          onCancel={() => setBrowserDialog(null)}
+        />
+      )}
     </>
   )
 }

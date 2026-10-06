@@ -17,6 +17,10 @@ npm run tauri:build:community
 
 A edição comunitária é compilada sem um serviço comercial de licenciamento. O servidor opcional do painel mobile serve apenas para desenvolvimento; não o habilite em uma versão empacotada.
 
+## Requisito de navegador
+
+O Pokeidle Manager utiliza o Brave para abrir e gerenciar contas no modo Browser e durante o login. O Brave não é distribuído junto com o Manager nem é baixado automaticamente pelo aplicativo. Se não estiver instalado, o Manager orientará você a obtê-lo no site oficial do Brave. Depois que uma sessão autenticada é transferida para o modo Background, a conexão é gerenciada pelo próprio Manager; abrir o Browser ou refazer login continua exigindo o Brave.
+
 ## Dados e rede
 
 O aplicativo armazena o banco de dados SQLite, os recursos em cache e os perfis persistentes do navegador Brave de cada conta no diretório de dados do aplicativo definido pelo Tauri no sistema operacional. Os perfis do navegador podem conter cookies de login e outros dados de sessão. Remover uma conta do aplicativo não necessariamente remove seu perfil do navegador. Consulte [Privacidade](PRIVACY.md) para saber mais e ver os cuidados antes de apagar dados.

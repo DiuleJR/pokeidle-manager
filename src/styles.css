@@ -4473,3 +4473,45 @@ select,
 @media (prefers-reduced-motion: reduce) {
   .boot-spinner { animation-duration: 2s; }
 }
+.browser-required-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #100d16d9;
+  backdrop-filter: blur(3px);
+}
+.browser-required-dialog {
+  width: min(100%, 480px);
+  padding: 24px;
+  border-color: #d68a4d;
+  box-shadow: 0 18px 64px #08060bb3, inset 0 1px #ffe2a522;
+}
+.browser-required-dialog h2 {
+  margin: 5px 0 12px;
+  color: var(--text, #fff1cf);
+}
+.browser-required-dialog > p:not(.eyebrow) {
+  color: var(--muted, #c4b6bf);
+  line-height: 1.55;
+}
+.browser-required-retry-hint,
+.browser-required-notice {
+  margin-top: 10px;
+  font-size: 0.82rem;
+}
+.browser-required-notice,
+.browser-action-error { color: #ffc078; }
+.browser-required-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.browser-required-actions button:first-child { border-color: #d68a4d; }
+@media (max-width: 560px) {
+  .browser-required-layer { padding: 14px; }
+  .browser-required-dialog { padding: 18px; }
+  .browser-required-actions { display: grid; grid-template-columns: 1fr; }
+}
