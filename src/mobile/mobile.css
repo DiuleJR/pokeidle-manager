@@ -1,0 +1,2450 @@
+@import '../shared/design-tokens.css';
+
+:root {
+  color-scheme: dark;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    Arial,
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#mobile-root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 88% 2%, #0b3d50 0, transparent 34rem),
+    radial-gradient(ellipse at 0% 60%, #0a2638 0, transparent 28rem), var(--bg-app);
+}
+
+button,
+a {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+.mobile-shell {
+  width: min(100%, 1440px);
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+
+.mobile-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  margin-bottom: clamp(24px, 5vw, 44px);
+  border-bottom: 1px solid #24516c88;
+}
+
+.mobile-brand {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.mobile-brand small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 0.55rem;
+  letter-spacing: 0.22em;
+}
+
+.brand-orbit {
+  color: var(--success);
+  font-size: 1.7rem;
+  text-shadow: 0 0 14px #58e0a777;
+}
+
+.mobile-preview-badge {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid #ffc25370;
+  border-radius: 999px;
+  background: #ffc25312;
+  color: var(--gold);
+  font:
+    700 0.62rem/1 Consolas,
+    monospace;
+  letter-spacing: 0.1em;
+}
+
+.mobile-dashboard {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.mobile-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.mobile-eyebrow {
+  margin: 0 0 8px;
+  color: var(--success);
+  font:
+    700 0.64rem/1.2 Consolas,
+    monospace;
+  letter-spacing: 0.14em;
+}
+
+.mobile-heading h1 {
+  margin: 0;
+  font-size: clamp(2rem, 8vw, 3.25rem);
+  line-height: 1;
+  letter-spacing: -0.065em;
+}
+
+.mobile-subtitle {
+  margin: 9px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.mobile-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.mobile-live-indicator > span,
+.status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 10px #58e0a7a0;
+}
+
+.mobile-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 30px;
+}
+
+.mobile-metric {
+  display: flex;
+  min-width: 0;
+  min-height: 63px;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobile-summary > .mobile-metric {
+  padding: 11px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(145deg, #0d2234e8, #081522);
+  box-shadow: inset 0 1px #b1ecff0a;
+}
+
+.mobile-summary > .mobile-metric:last-child {
+  grid-column: 1 / -1;
+}
+
+.mobile-metric-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #39cff544;
+  border-radius: 10px;
+  background: #0d2b40;
+  color: var(--accent);
+}
+
+.mobile-metric-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.mobile-metric-label {
+  overflow: hidden;
+  color: var(--text-muted);
+  font:
+    600 0.57rem/1.2 Consolas,
+    monospace;
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-metric-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: clamp(0.79rem, 3.4vw, 0.96rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-currency-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.gold-icon {
+  color: var(--gold);
+}
+
+.orb-icon {
+  color: var(--gem);
+}
+
+.summary-bolt,
+.bolt-icon {
+  color: var(--accent);
+  font-size: 1.28rem;
+  font-weight: 900;
+}
+
+.people-icon {
+  color: var(--success);
+  font-size: 1.35rem;
+}
+
+.mobile-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 2px 13px;
+}
+
+.mobile-section-heading .mobile-eyebrow {
+  margin-bottom: 5px;
+}
+
+.mobile-section-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.035em;
+}
+
+.mobile-section-heading > span {
+  padding-bottom: 2px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.mobile-account-list {
+  display: grid;
+  gap: 12px;
+}
+
+.mobile-account-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(ellipse at 100% 0%, #10314a88, transparent 52%),
+    linear-gradient(150deg, #0b1c2b, #07131f 74%);
+  box-shadow: var(--shadow-card);
+}
+
+.mobile-account-header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #24516c88;
+}
+
+.mobile-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #ffffff28;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #3688ff, #2363d4);
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 800;
+  box-shadow: 0 0 18px #3187ff30;
+}
+
+.mobile-account-name {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.mobile-account-name h2 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 0.91rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid #58e0a755;
+  border-radius: 999px;
+  background: #58e0a710;
+  color: var(--success);
+  font:
+    700 0.57rem/1 Consolas,
+    monospace;
+}
+
+.status-offline {
+  border-color: #7491ad55;
+  background: #7491ad10;
+  color: var(--text-muted);
+}
+
+.status-offline .status-dot {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+
+.mobile-owner {
+  overflow: hidden;
+  margin-left: auto;
+  color: var(--accent);
+  font:
+    600 0.57rem/1.25 Consolas,
+    monospace;
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
+.owner-none {
+  color: var(--text-muted);
+}
+
+.owner-transition {
+  color: var(--gold);
+}
+
+.mobile-pokemon-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 0;
+}
+
+.mobile-pokemon-art {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  width: clamp(68px, 21vw, 92px);
+  height: 80px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: 1px solid #24516c55;
+  border-radius: 13px;
+  background: radial-gradient(ellipse, #153d4b, #081a28 72%);
+}
+
+.mobile-pokemon-placeholder {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid #58e0a766;
+  border-radius: 50%;
+  background: #102f3d;
+  color: var(--success);
+  font:
+    700 1.7rem/1 Consolas,
+    monospace;
+  box-shadow: 0 0 24px #58e0a722;
+}
+
+.mobile-sprite-frame {
+  display: block;
+  flex: 0 0 auto;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.mobile-equipped-item-sprite {
+  display: block;
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.connection-connected > span {
+  background: var(--success);
+}
+.connection-loading > span {
+  background: var(--gold);
+}
+.connection-disconnected > span {
+  background: #ff7484;
+  box-shadow: 0 0 10px #ff748477;
+}
+.mock-badge {
+  border-color: #ffc25370;
+  color: var(--gold);
+}
+
+.pokemon-flower {
+  font-size: clamp(2.1rem, 10vw, 3rem);
+  line-height: 1;
+  filter: drop-shadow(0 0 10px #58e0a755);
+}
+
+.pokemon-leaves {
+  color: var(--success);
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.mobile-pokemon-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.mobile-pokemon-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.mobile-pokemon-title strong {
+  overflow: hidden;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-pokemon-title > span {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.mobile-hp {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.mobile-hp-track {
+  height: 6px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #263d4b;
+}
+
+.mobile-hp-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2cc99a, var(--success));
+}
+
+.mobile-hp small {
+  color: var(--text-secondary);
+  font-size: 0.6rem;
+}
+
+.mobile-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #24516c66;
+}
+
+.mobile-rate-grid .mobile-metric {
+  min-height: 43px;
+  gap: 7px;
+  padding: 6px 3px 3px 0;
+}
+
+.mobile-rate-grid .mobile-metric:nth-child(even) {
+  padding-left: 7px;
+  border-left: 1px solid #24516c66;
+}
+
+.mobile-rate-grid .mobile-metric-icon {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+}
+
+.mobile-rate-grid .mobile-metric-label {
+  font-size: 0.52rem;
+}
+
+.mobile-rate-grid .mobile-metric-copy strong {
+  font-size: 0.75rem;
+}
+
+.potion-icon,
+.ball-icon {
+  color: #e4e957;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.ball-icon {
+  color: #f3cf55;
+}
+
+.mobile-account-footer {
+  display: flex;
+  min-height: 39px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #24516c88;
+  padding-top: 9px;
+}
+
+.mobile-hunt {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 0.66rem;
+}
+
+.hunt-mark {
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.hunt-label {
+  color: var(--text-muted);
+}
+
+.mobile-hunt strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hunt-timer {
+  flex: 0 0 auto;
+  margin-left: 5px;
+  color: var(--success);
+  font:
+    700 0.63rem/1 Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.hunt-timer .ui-icon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 3px;
+  vertical-align: -2px;
+}
+
+.mobile-wallet {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  font:
+    800 0.68rem/1 Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.mobile-wallet > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-wallet .mobile-currency-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.mobile-wallet > span:first-child {
+  color: var(--gold);
+}
+
+.mobile-wallet > span:last-child {
+  color: var(--gem);
+}
+
+.mobile-disclaimer {
+  margin: 18px 2px 0;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (min-width: 620px) {
+  .mobile-shell {
+    padding-inline: max(24px, env(safe-area-inset-left));
+    padding-right: max(24px, env(safe-area-inset-right));
+  }
+
+  .mobile-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .mobile-summary > .mobile-metric:last-child {
+    grid-column: auto;
+  }
+
+  .mobile-summary > .mobile-metric {
+    min-height: 75px;
+    padding-inline: 13px;
+  }
+}
+
+@media (min-width: 760px) {
+  .mobile-account-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .mobile-account-card {
+    padding: 15px;
+  }
+}
+
+@media (min-width: 960px) {
+  .mobile-shell {
+    padding-inline: 40px;
+  }
+
+  .mobile-summary {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 370px) {
+  .mobile-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-live-indicator {
+    align-self: flex-start;
+  }
+
+  .mobile-account-card {
+    padding: 11px;
+  }
+
+  .mobile-wallet {
+    gap: 6px;
+    font-size: 0.61rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Mobile companion shell and read-only screens */
+.mobile-shell {
+  padding-bottom: calc(94px + env(safe-area-inset-bottom));
+}
+
+.mobile-topbar {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  min-height: 54px;
+  margin: 0 -14px 24px;
+  padding: 0 14px;
+  border-bottom: 1px solid #24516c88;
+  background: #071522ed;
+  backdrop-filter: blur(16px);
+}
+
+.mobile-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.mobile-mini-connection {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.mobile-mini-connection.connection-connected {
+  background: var(--success);
+  box-shadow: 0 0 12px #58e0a799;
+}
+.mobile-mini-connection.connection-loading {
+  background: var(--gold);
+}
+.mobile-mini-connection.connection-disconnected {
+  background: #ff7484;
+}
+
+.mobile-page {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding-bottom: 14px;
+  animation: mobile-page-in 180ms ease-out both;
+}
+
+@keyframes mobile-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-page .mobile-heading {
+  align-items: start;
+  margin-bottom: 21px;
+}
+
+.mobile-page .mobile-heading h1 {
+  font-size: clamp(2.05rem, 8vw, 3rem);
+}
+
+.mobile-panel {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 100% 0%, #10314a66, transparent 58%),
+    linear-gradient(150deg, #0b1c2b, #07131f 74%);
+  box-shadow: var(--shadow-card);
+}
+
+.mobile-status-strip {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 0 12px;
+  border: 1px solid #58e0a733;
+  border-radius: 11px;
+  background: #58e0a70b;
+  color: var(--success);
+  font-size: 0.78rem;
+}
+
+.mobile-status-strip strong {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font:
+    700 0.68rem Consolas,
+    monospace;
+}
+.status-shield {
+  font-size: 1rem;
+}
+
+.mobile-automation-list {
+  display: grid;
+  gap: 12px;
+}
+.mobile-automation-card {
+  padding: 14px;
+}
+
+.mobile-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #24516c88;
+}
+
+.mobile-panel-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+.mobile-panel-heading h2 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-automation-hunt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 0 5px;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+.mobile-automation-hunt strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-automation-hunt time {
+  color: var(--success);
+  font:
+    700 0.61rem Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.status-pill,
+.owner-pill {
+  width: fit-content;
+  border-radius: 999px;
+  font:
+    700 0.59rem/1 Consolas,
+    monospace;
+}
+.status-pill {
+  padding: 4px 7px;
+  border: 1px solid #58e0a755;
+  color: var(--success);
+  background: #58e0a710;
+}
+.status-pill.status-offline {
+  border-color: #7491ad55;
+  color: var(--text-muted);
+  background: #7491ad10;
+}
+.owner-pill {
+  padding: 6px 8px;
+  color: var(--accent);
+  background: #28c5f10d;
+  text-align: right;
+}
+.mobile-automation-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+  padding-top: 6px;
+}
+.automation-state {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  min-height: 37px;
+  border-bottom: 1px solid #24516c44;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+}
+.automation-state > span:nth-child(2) {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+}
+.automation-state strong {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font:
+    600 0.59rem Consolas,
+    monospace;
+}
+.automation-state:has(.is-on) strong {
+  color: var(--success);
+}
+.automation-light {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #6e8292;
+}
+.automation-light.is-on {
+  background: var(--success);
+  box-shadow: 0 0 8px #58e0a777;
+}
+.automation-note {
+  grid-column: 1 / -1;
+  padding: 8px 0 0 13px;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+}
+
+.mobile-inventory-controls {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.mobile-field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font:
+    700 0.62rem Consolas,
+    monospace;
+}
+.mobile-field select,
+.mobile-search input {
+  width: 100%;
+  min-height: 43px;
+  padding: 0 12px;
+  border: 1px solid #286080;
+  border-radius: 10px;
+  background: #071522;
+  color: var(--text-primary);
+  font:
+    500 0.86rem 'Segoe UI',
+    system-ui,
+    sans-serif;
+}
+.mobile-field select {
+  color-scheme: dark;
+}
+.mobile-search {
+  display: block;
+  min-width: 0;
+}
+.mobile-search input::placeholder {
+  color: #7892a5;
+}
+.mobile-segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #24516c88;
+  border-radius: 11px;
+  background: #071522;
+}
+.mobile-segmented button {
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mobile-segmented button[aria-pressed='true'],
+.mobile-segmented button[aria-selected='true'] {
+  background: #0d3045;
+  color: var(--success);
+  box-shadow: inset 0 0 0 1px #58e0a755;
+}
+.mobile-chip-row {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 1px 1px 3px;
+  scrollbar-width: none;
+}
+.mobile-chip-row::-webkit-scrollbar {
+  display: none;
+}
+.mobile-chip {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 0 11px;
+  border: 1px solid #28506b;
+  border-radius: 999px;
+  background: #0a1a28;
+  color: var(--text-secondary);
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mobile-chip[aria-pressed='true'] {
+  border-color: #58e0a788;
+  background: #58e0a714;
+  color: var(--success);
+}
+.mobile-list-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 2px 7px;
+  color: var(--text-muted);
+  font:
+    600 0.61rem Consolas,
+    monospace;
+}
+.mobile-list-summary button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font:
+    700 0.6rem Consolas,
+    monospace;
+  cursor: pointer;
+}
+.mobile-inventory-list,
+.mobile-market-list {
+  overflow: auto;
+  max-height: min(58dvh, 620px);
+  overscroll-behavior: contain;
+  border: 1px solid #24516c88;
+  border-radius: 13px;
+  background: #071522a8;
+}
+.mobile-inventory-row {
+  display: flex;
+  min-width: 0;
+  min-height: 60px;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #24516c66;
+}
+.mobile-inventory-row:last-child {
+  border-bottom: 0;
+}
+.inventory-item-mark,
+.pokemon-inventory-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #2d6580;
+  border-radius: 10px;
+  background: #0d293b;
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+.inventory-item-mark.category-ball {
+  color: #f3cf55;
+}
+.inventory-item-mark.category-potion {
+  color: #b6dc64;
+}
+.inventory-item-mark.category-stone {
+  color: #c1b6e9;
+}
+.pokemon-inventory-mark {
+  border-radius: 50%;
+  color: #86d9fa;
+}
+.inventory-row-name {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--text-primary);
+  font-size: 0.79rem;
+  font-weight: 700;
+}
+.inventory-row-name small {
+  width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font:
+    500 0.61rem Consolas,
+    monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-inventory-row > strong {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font:
+    800 0.78rem Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.pokemon-quality {
+  color: var(--gold);
+  font:
+    700 0.67rem Consolas,
+    monospace;
+}
+.shiny-tag {
+  padding: 2px 5px;
+  border: 1px solid #ffc25366;
+  border-radius: 6px;
+  color: var(--gold);
+  font:
+    700 0.55rem Consolas,
+    monospace;
+  font-style: normal;
+}
+.mobile-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 11px;
+}
+.mobile-pagination button,
+.mobile-secondary-button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #286080;
+  border-radius: 9px;
+  background: #0b2334;
+  color: var(--text-primary);
+  font-size: 0.69rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mobile-pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.mobile-pagination span {
+  color: var(--text-muted);
+  font:
+    600 0.61rem Consolas,
+    monospace;
+}
+.mobile-empty {
+  margin: 14px 0;
+  padding: 18px 14px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.inline-empty {
+  margin: 0;
+}
+.mobile-refresh-note {
+  margin: 8px 2px 0;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  text-align: right;
+}
+.mobile-footnote {
+  margin: 14px 3px 0;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.market-status-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.market-status-panel > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+.market-reader-status {
+  color: var(--success);
+  font-size: 0.79rem;
+}
+.market-status-meta {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  text-align: right;
+}
+.market-status-meta strong {
+  color: var(--text-primary);
+}
+.market-status-meta time {
+  font:
+    500 0.58rem Consolas,
+    monospace;
+}
+.market-tabs {
+  margin-bottom: 11px;
+}
+.market-tabs button {
+  min-height: 37px;
+  padding-inline: 5px;
+  font-size: 0.66rem;
+}
+.mobile-market-controls {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 11px;
+}
+.market-column-head,
+.mobile-offer-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 52px 66px minmax(80px, auto);
+  align-items: center;
+  gap: 8px;
+}
+.market-column-head {
+  min-height: 33px;
+  padding: 0 11px;
+  border-bottom: 1px solid #24516c88;
+  color: var(--text-muted);
+  font:
+    600 0.53rem Consolas,
+    monospace;
+  text-transform: uppercase;
+}
+.market-column-head span:not(:first-child) {
+  text-align: right;
+}
+.market-column-head span:nth-child(2) {
+  text-align: left;
+}
+.mobile-market-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 59px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border-bottom: 1px solid #24516c66;
+}
+.mobile-market-row:last-child {
+  border-bottom: 0;
+}
+.mobile-offer-row {
+  min-height: 62px;
+}
+.market-item-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+.market-item-artwork {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--game-copper) 56%, var(--game-wood));
+  border-radius: 9px;
+  background: linear-gradient(145deg, var(--game-wood-light), var(--game-panel-inset));
+  color: var(--game-gold);
+  font-size: 1.1rem;
+}
+.market-item-artwork img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.market-item-artwork > span {
+  line-height: 1;
+}
+.market-item-main > .market-item-copy {
+  flex: 1 1 auto;
+}
+.market-item-main .market-item-copy {
+  min-width: 0;
+}
+.market-item-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.market-item-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.market-item-copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font:
+    500 0.56rem Consolas,
+    monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.market-offer-count,
+.market-unit-count {
+  color: var(--text-secondary);
+  font:
+    700 0.66rem Consolas,
+    monospace;
+  text-align: right;
+}
+.market-prices {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  color: var(--gold);
+  font:
+    700 0.64rem Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.market-prices > span,
+.market-prices > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.market-prices .mobile-currency-icon {
+  width: 13px;
+  height: 13px;
+}
+.market-rank {
+  width: 21px;
+  color: var(--success);
+  font:
+    700 0.63rem Consolas,
+    monospace;
+}
+.mobile-top-sale {
+  grid-template-columns: 21px minmax(0, 1fr) auto;
+}
+.mobile-recent-sale {
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+}
+.market-kind-icon {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid #2d6580;
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 0.86rem;
+}
+.market-kind-icon.kind-pokemon {
+  color: #ff8392;
+}
+.market-kind-icon {
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+}
+.market-kind-icon img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.market-kind-icon .mobile-sprite-frame {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.market-kind-icon.kind-unknown {
+  color: var(--text-muted);
+}
+.market-prices > small {
+  color: var(--text-muted);
+  font:
+    500 0.54rem Consolas,
+    monospace;
+}
+.unknown-currency {
+  color: var(--gem);
+}
+
+.settings-panel {
+  display: grid;
+  gap: 0;
+}
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: start;
+  gap: 10px;
+  min-height: 43px;
+  padding: 11px 0;
+  border-bottom: 1px solid #24516c66;
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+}
+.settings-value {
+  color: var(--success);
+  font-size: 0.72rem;
+  text-align: right;
+}
+.settings-value.connection-label-disconnected {
+  color: #ff8492;
+}
+.settings-value.connection-label-loading {
+  color: var(--gold);
+}
+.settings-address {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+  font:
+    600 0.67rem/1.45 Consolas,
+    monospace;
+  user-select: all;
+}
+.mobile-secondary-button {
+  width: 100%;
+  margin-top: 12px;
+  border-color: #58e0a766;
+  color: var(--success);
+}
+.copy-fallback {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.63rem;
+  line-height: 1.4;
+}
+.settings-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: 12px;
+  border-color: #58e0a733;
+}
+.settings-safe-mark {
+  color: var(--success);
+  font-size: 1.1rem;
+}
+.settings-note strong {
+  color: var(--success);
+  font-size: 0.73rem;
+}
+.settings-note p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mobile-bottom-nav {
+  position: fixed;
+  z-index: 30;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-height: calc(63px + env(safe-area-inset-bottom));
+  padding: 5px max(8px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  border-top: 1px solid #286080a0;
+  background: #071522f2;
+  box-shadow: 0 -10px 35px #0005;
+  backdrop-filter: blur(18px);
+}
+
+.mobile-nav-item {
+  display: flex;
+  min-width: 0;
+  min-height: 50px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.57rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-nav-item.is-current {
+  background: linear-gradient(180deg, #0d3045aa, #0d304522);
+  color: var(--success);
+}
+.mobile-nav-icon {
+  font-size: 1.12rem;
+  line-height: 1;
+}
+.mobile-nav-item.is-current .mobile-nav-icon {
+  text-shadow: 0 0 12px #58e0a766;
+}
+
+@media (max-width: 539px) {
+  .market-column-head {
+    display: none;
+  }
+  .mobile-offer-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .market-offer-count,
+  .market-unit-count {
+    display: none;
+  }
+  .mobile-market-controls .mobile-search input {
+    min-height: 40px;
+  }
+  .mobile-automation-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 620px) {
+  .mobile-topbar {
+    margin-inline: -24px;
+    padding-inline: 24px;
+  }
+  .mobile-inventory-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 0.8fr);
+    align-items: end;
+  }
+  .mobile-inventory-controls .mobile-search,
+  .mobile-inventory-controls .mobile-chip-row {
+    grid-column: 1 / -1;
+  }
+  .mobile-automation-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .market-column-head {
+    display: grid;
+  }
+  .mobile-offer-row {
+    grid-template-columns: minmax(0, 1fr) 52px 66px minmax(80px, auto);
+  }
+  .market-offer-count,
+  .market-unit-count {
+    display: block;
+  }
+}
+
+@media (min-width: 960px) {
+  .mobile-topbar {
+    margin-inline: -40px;
+    padding-inline: 40px;
+  }
+  .mobile-bottom-nav {
+    right: 50%;
+    bottom: 14px;
+    left: auto;
+    width: min(600px, calc(100% - 32px));
+    min-height: 66px;
+    transform: translateX(50%);
+    padding: 6px 10px;
+    border: 1px solid #286080a0;
+    border-radius: 17px;
+  }
+  .mobile-shell {
+    padding-bottom: 112px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .mobile-topbar {
+    min-height: 45px;
+    margin-bottom: 15px;
+  }
+  .mobile-bottom-nav {
+    min-height: calc(50px + env(safe-area-inset-bottom));
+  }
+  .mobile-nav-item {
+    min-height: 41px;
+    flex-direction: row;
+    gap: 6px;
+    font-size: 0.62rem;
+  }
+  .mobile-nav-icon {
+    font-size: 1rem;
+  }
+  .mobile-shell {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  .mobile-page .mobile-heading {
+    margin-bottom: 13px;
+  }
+  .mobile-summary {
+    margin-bottom: 18px;
+  }
+}
+
+@media (max-width: 370px) {
+  .mobile-topbar {
+    margin-inline: -14px;
+    padding-inline: 12px;
+  }
+  .mobile-brand {
+    font-size: 0.78rem;
+  }
+  .mobile-preview-badge {
+    min-height: 28px;
+    padding-inline: 8px;
+  }
+  .market-tabs button {
+    font-size: 0.59rem;
+  }
+  .mobile-market-row {
+    padding-inline: 9px;
+    gap: 7px;
+  }
+  .market-prices {
+    font-size: 0.6rem;
+  }
+  .mobile-nav-item {
+    font-size: 0.53rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-page {
+    animation: none;
+  }
+}
+
+/* Warm RPG frame skin. These overrides are isolated to the mobile entrypoint;
+   layout, navigation state, data rendering, and scroll ownership stay intact. */
+body {
+  background:
+    radial-gradient(
+      ellipse at 88% 2%,
+      color-mix(in srgb, var(--game-purple) 20%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      ellipse at 0% 60%,
+      color-mix(in srgb, var(--game-wood-light) 14%, transparent),
+      transparent 28rem
+    ),
+    var(--game-bg);
+  color: var(--game-text);
+}
+
+.mobile-shell {
+  color: var(--game-text);
+}
+
+.mobile-topbar {
+  border-bottom-color: color-mix(in srgb, var(--game-copper) 74%, var(--game-wood));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--game-wood) 90%, var(--game-bg)),
+    color-mix(in srgb, var(--game-bg) 90%, transparent)
+  );
+}
+
+.mobile-brand,
+.mobile-heading h1,
+.mobile-section-heading h2,
+.mobile-account-name h2,
+.mobile-pokemon-title strong,
+.mobile-panel-heading h2 {
+  color: var(--game-text);
+}
+
+.mobile-brand small,
+.mobile-subtitle,
+.mobile-section-heading > span,
+.mobile-pokemon-title > span,
+.mobile-live-indicator,
+.mobile-field,
+.mobile-list-summary,
+.mobile-footnote,
+.mobile-empty,
+.mobile-disclaimer {
+  color: var(--game-text-soft);
+}
+
+.mobile-eyebrow,
+.hunt-mark,
+.mobile-nav-icon {
+  color: var(--game-gold);
+}
+
+.brand-orbit {
+  color: var(--game-purple-bright);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--game-purple-bright) 60%, transparent);
+}
+
+.mobile-preview-badge {
+  border-color: color-mix(in srgb, var(--game-gold) 66%, var(--game-wood));
+  border-radius: var(--game-radius-control);
+  background: color-mix(in srgb, var(--game-gold) 12%, var(--game-panel));
+  color: var(--game-gold);
+}
+
+.mobile-account-card,
+.mobile-summary > .mobile-metric,
+.mobile-panel,
+.mobile-inventory-list,
+.mobile-market-list,
+.mobile-bottom-nav {
+  border: var(--game-border-frame);
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--game-panel-raised) 82%, var(--game-wood)),
+    var(--game-panel) 48%,
+    var(--game-panel-inset)
+  );
+  box-shadow: var(--game-shadow-panel);
+}
+
+.mobile-account-card,
+.mobile-summary > .mobile-metric,
+.mobile-panel {
+  position: relative;
+}
+
+.mobile-account-card::before,
+.mobile-summary > .mobile-metric::before,
+.mobile-panel::before {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid color-mix(in srgb, var(--game-gold) 30%, transparent);
+  border-radius: calc(var(--game-radius-panel) - 4px);
+  content: '';
+  pointer-events: none;
+}
+
+.mobile-account-card > *,
+.mobile-summary > .mobile-metric > *,
+.mobile-panel > * {
+  position: relative;
+}
+
+.mobile-summary > .mobile-metric {
+  border-width: 2px;
+  border-radius: var(--game-radius-control);
+  background: linear-gradient(145deg, var(--game-panel-raised), var(--game-panel));
+}
+
+.mobile-metric-icon,
+.inventory-item-mark,
+.pokemon-inventory-mark,
+.market-kind-icon {
+  border-color: color-mix(in srgb, var(--game-copper) 78%, var(--game-wood));
+  border-radius: var(--game-radius-control);
+  background: linear-gradient(145deg, var(--game-wood-light), var(--game-wood));
+  color: var(--game-gold);
+}
+
+.mobile-metric-label,
+.mobile-owner,
+.hunt-label,
+.mobile-list-summary,
+.settings-row,
+.market-column-head,
+.market-item-copy small {
+  color: var(--game-text-muted);
+}
+
+.mobile-metric-copy strong,
+.mobile-hunt strong,
+.inventory-row-name,
+.market-item-copy strong,
+.settings-value {
+  color: var(--game-text);
+}
+
+.mobile-account-header,
+.mobile-rate-grid,
+.mobile-account-footer,
+.mobile-panel-heading,
+.mobile-inventory-row,
+.market-column-head,
+.mobile-market-row,
+.settings-row {
+  border-color: color-mix(in srgb, var(--game-copper) 38%, var(--game-panel));
+}
+
+.mobile-avatar {
+  border-color: var(--game-gold);
+  background: linear-gradient(145deg, var(--game-purple-bright), var(--game-purple-deep));
+  color: var(--game-text);
+  box-shadow: var(--game-shadow-selected);
+}
+
+.mobile-status,
+.status-pill {
+  border-color: color-mix(in srgb, var(--game-green) 70%, var(--game-panel));
+  background: color-mix(in srgb, var(--game-green) 15%, var(--game-panel));
+  color: var(--game-green);
+}
+
+.status-offline,
+.status-pill.status-offline {
+  border-color: color-mix(in srgb, var(--game-text-muted) 58%, var(--game-panel));
+  background: color-mix(in srgb, var(--game-text-muted) 12%, var(--game-panel));
+  color: var(--game-text-muted);
+}
+
+.owner-transition,
+.mobile-wallet > span:first-child,
+.gold-icon,
+.market-prices {
+  color: var(--game-gold);
+}
+
+.owner-none,
+.mobile-wallet > span:last-child,
+.orb-icon,
+.unknown-currency {
+  color: var(--game-purple-bright);
+}
+
+.mobile-pokemon-art {
+  border-color: color-mix(in srgb, var(--game-copper) 52%, var(--game-panel));
+  border-radius: var(--game-radius-control);
+  background: radial-gradient(ellipse, var(--game-panel-raised), var(--game-panel-inset) 74%);
+}
+
+.mobile-pokemon-placeholder {
+  border-color: color-mix(in srgb, var(--game-purple-bright) 70%, var(--game-panel));
+  background: var(--game-purple-deep);
+  color: var(--game-text);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--game-purple) 44%, transparent);
+}
+
+.mobile-hp-track {
+  background: var(--game-panel-inset);
+}
+.mobile-hp-track span {
+  background: linear-gradient(
+    90deg,
+    var(--game-green),
+    color-mix(in srgb, var(--game-green) 66%, var(--game-gold))
+  );
+}
+
+.mobile-summary .mobile-metric-icon,
+.mobile-rate-grid .mobile-metric-icon {
+  border-color: color-mix(in srgb, var(--game-copper) 78%, var(--game-wood));
+  background: linear-gradient(145deg, var(--game-wood-light), var(--game-wood));
+  color: var(--game-gold);
+}
+
+.mobile-status-strip,
+.settings-note {
+  border-color: color-mix(in srgb, var(--game-green) 50%, var(--game-panel));
+  background: color-mix(in srgb, var(--game-green) 11%, var(--game-panel));
+  color: var(--game-green);
+}
+
+.mobile-panel-heading,
+.mobile-automation-hunt,
+.automation-state,
+.settings-row {
+  color: var(--game-text-soft);
+}
+
+.status-pill,
+.owner-pill,
+.automation-state strong,
+.settings-value {
+  color: var(--game-text-soft);
+}
+
+.status-pill.status-online,
+.automation-state:has(.is-on) strong {
+  color: var(--game-green);
+}
+
+.automation-light {
+  background: var(--game-text-muted);
+}
+.automation-light.is-on {
+  background: var(--game-green);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--game-green) 62%, transparent);
+}
+
+.mobile-field select,
+.mobile-search input {
+  border-color: color-mix(in srgb, var(--game-copper) 68%, var(--game-wood));
+  border-radius: var(--game-radius-control);
+  background: var(--game-panel-inset);
+  color: var(--game-text);
+  box-shadow: inset 0 2px 4px color-mix(in srgb, var(--game-bg-deep) 65%, transparent);
+}
+
+.mobile-field select:focus-visible,
+.mobile-search input:focus-visible,
+.mobile-chip:focus-visible,
+.mobile-segmented button:focus-visible,
+.mobile-pagination button:focus-visible,
+.mobile-secondary-button:focus-visible,
+.mobile-nav-item:focus-visible {
+  outline: 3px solid var(--game-purple-bright);
+  outline-offset: 2px;
+}
+
+.mobile-search input::placeholder,
+.mobile-search input::-webkit-input-placeholder {
+  color: var(--game-text-muted);
+}
+
+.mobile-segmented {
+  border-color: color-mix(in srgb, var(--game-copper) 58%, var(--game-wood));
+  border-radius: var(--game-radius-control);
+  background: var(--game-panel-inset);
+}
+
+.mobile-segmented button {
+  border-radius: var(--game-radius-control);
+  color: var(--game-text-soft);
+}
+
+.mobile-segmented button[aria-pressed='true'],
+.mobile-segmented button[aria-selected='true'],
+.mobile-chip[aria-pressed='true'] {
+  border-color: var(--game-purple-bright);
+  background: linear-gradient(145deg, var(--game-purple), var(--game-purple-deep));
+  color: var(--game-text);
+  box-shadow: var(--game-shadow-selected);
+}
+
+.mobile-chip {
+  border-color: color-mix(in srgb, var(--game-copper) 55%, var(--game-wood));
+  border-radius: var(--game-radius-control);
+  background: var(--game-panel);
+  color: var(--game-text-soft);
+}
+
+.mobile-inventory-list,
+.mobile-market-list {
+  border-radius: var(--game-radius-control);
+  background: var(--game-panel-inset);
+}
+.inventory-item-mark.category-ball {
+  color: var(--game-gold);
+}
+.inventory-item-mark.category-potion {
+  color: var(--game-green);
+}
+.inventory-item-mark.category-stone {
+  color: var(--game-purple-bright);
+}
+.pokemon-inventory-mark {
+  color: var(--game-blue);
+}
+.pokemon-quality,
+.shiny-tag {
+  color: var(--game-gold);
+}
+
+.mobile-pagination button,
+.mobile-secondary-button {
+  border-color: color-mix(in srgb, var(--game-copper) 72%, var(--game-wood));
+  border-radius: var(--game-radius-control);
+  background: linear-gradient(145deg, var(--game-wood-light), var(--game-wood));
+  color: var(--game-text);
+  box-shadow: inset 0 1px color-mix(in srgb, var(--game-gold) 42%, transparent);
+}
+
+.mobile-secondary-button {
+  border-color: var(--game-purple-bright);
+  background: linear-gradient(145deg, var(--game-purple), var(--game-purple-deep));
+  color: var(--game-text);
+}
+
+.mobile-pagination button:disabled {
+  border-color: color-mix(in srgb, var(--game-text-muted) 36%, var(--game-panel));
+  background: var(--game-panel-inset);
+  color: var(--game-text-muted);
+}
+
+.mobile-pagination span,
+.mobile-list-summary button {
+  color: var(--game-text-soft);
+}
+.market-column-head {
+  color: var(--game-text-muted);
+}
+.market-offer-count,
+.market-unit-count {
+  color: var(--game-text-soft);
+}
+
+.mobile-bottom-nav {
+  border-color: var(--game-copper);
+  background: linear-gradient(145deg, var(--game-wood), var(--game-bg-deep) 34%, var(--game-panel));
+  box-shadow: var(--game-shadow-panel);
+}
+
+.mobile-nav-item {
+  border-radius: var(--game-radius-control);
+  color: var(--game-text-soft);
+}
+
+.mobile-nav-item.is-current {
+  background: linear-gradient(145deg, var(--game-purple), var(--game-purple-deep));
+  color: var(--game-text);
+  box-shadow: var(--game-shadow-selected);
+}
+
+.mobile-nav-item.is-current .mobile-nav-icon {
+  color: var(--game-gold);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--game-purple-bright) 62%, transparent);
+}
+
+.market-kind-icon.kind-pokemon {
+  color: var(--game-purple-bright);
+}
+.market-kind-icon.kind-unknown {
+  color: var(--game-text-muted);
+}
+.mobile-refresh-note,
+.mobile-pagination span,
+.market-prices > small {
+  color: var(--game-text-muted);
+}
+.settings-address {
+  color: var(--game-blue);
+}
+.settings-value.connection-label-disconnected {
+  color: var(--game-purple-bright);
+}
+.settings-value.connection-label-loading {
+  color: var(--game-gold);
+}
+.settings-note strong,
+.settings-safe-mark {
+  color: var(--game-green);
+}
+
+.mobile-shell button,
+.mobile-shell a {
+  touch-action: manipulation;
+}
+
+.mobile-shell button,
+.mobile-shell a[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.mobile-shell button:active,
+.mobile-shell a:active {
+  filter: brightness(1.12);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mobile-shell button:not(:disabled):hover,
+  .mobile-shell a:hover {
+    filter: brightness(1.1);
+  }
+
+  .mobile-account-card:hover,
+  .mobile-summary > .mobile-metric:hover,
+  .mobile-panel:hover {
+    border-color: var(--game-gold);
+  }
+}
+
+@media (pointer: coarse) {
+  .mobile-search input,
+  .mobile-field select {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-shell button,
+  .mobile-shell a,
+  .mobile-account-card,
+  .mobile-panel,
+  .mobile-summary > .mobile-metric {
+    transition: none !important;
+  }
+}
+
+/* Branded mobile frame: preserve the game artwork while keeping the content compact. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+.mobile-topbar {
+  min-height: 58px;
+  margin-bottom: 14px;
+  padding-inline: 2px;
+}
+
+.mobile-brand {
+  min-height: 48px;
+}
+.mobile-brand img {
+  display: block;
+  width: auto;
+  height: 46px;
+  max-width: min(48vw, 220px);
+  object-fit: contain;
+}
+
+.mobile-topbar-right {
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.mobile-page-heading {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 154px;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  padding: 8px 12px 11px;
+  border: var(--game-border-frame);
+  border-radius: var(--game-radius-panel);
+  background: var(--game-panel);
+  box-shadow: var(--game-shadow-panel);
+  text-align: center;
+}
+
+.mobile-page-heading::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--game-bg) 5%, transparent),
+    color-mix(in srgb, var(--game-bg) 54%, transparent)
+  );
+  content: '';
+}
+
+.mobile-page-scenery {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 48%;
+}
+
+.mobile-page-titleboard {
+  position: relative;
+  width: min(100%, 360px);
+  aspect-ratio: 3 / 1;
+}
+
+.mobile-page-titleboard > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mobile-page-titleboard h1 {
+  position: absolute;
+  top: 30%;
+  bottom: 30%;
+  left: 23%;
+  display: grid;
+  width: 64%;
+  place-items: center;
+  overflow: hidden;
+  margin: 0;
+  color: var(--game-gold);
+  font-family: 'Segoe UI Black', 'Arial Black', 'Segoe UI', sans-serif;
+  font-size: clamp(0.78rem, 4.8vw, 1.25rem);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow:
+    0 2px #814326,
+    0 4px #371b23,
+    0 5px #26141a;
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-text-stroke: 0.45px #5e3029;
+}
+
+.mobile-page-heading-copy {
+  min-width: 0;
+}
+.mobile-page-heading-copy .mobile-eyebrow {
+  margin: 0 0 3px;
+  color: var(--game-gold);
+  font-size: 0.56rem;
+}
+.mobile-page-heading-copy .mobile-subtitle {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--game-text-soft);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.mobile-live-indicator {
+  width: fit-content;
+  min-height: 32px;
+  margin: 0 auto 13px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--game-copper) 50%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--game-panel) 88%, transparent);
+  color: var(--game-text-soft);
+  font-size: 0.64rem;
+}
+
+.mobile-nav-item {
+  min-height: 52px;
+  padding: 3px 2px;
+  font-size: 0.58rem;
+}
+
+.mobile-nav-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+}
+.mobile-nav-icon img {
+  display: block;
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+}
+.mobile-owner,
+.owner-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.mobile-owner img,
+.owner-pill img {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+.mobile-glyph {
+  display: block;
+  width: 21px;
+  height: 21px;
+}
+.glyph-xp {
+  filter: drop-shadow(0 0 3px #55a5ff66);
+}
+
+@media (max-width: 380px) {
+  .mobile-shell {
+    padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
+  }
+
+  .mobile-brand img {
+    height: 40px;
+  }
+  .mobile-page-heading {
+    min-height: 142px;
+  }
+  .mobile-nav-item {
+    font-size: 0.54rem;
+  }
+  .mobile-nav-icon,
+  .mobile-nav-icon img {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (min-width: 700px) {
+  .mobile-page-heading {
+    min-height: 176px;
+  }
+  .mobile-page-titleboard {
+    width: min(100%, 440px);
+  }
+  .mobile-page-titleboard h1 {
+    font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+  }
+  .mobile-page-heading-copy .mobile-subtitle {
+    font-size: 0.78rem;
+  }
+}
+
+.mobile-pokemon-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 4px;
+}
+
+.mobile-pokemon-filters .mobile-field:last-child {
+  grid-column: 1 / -1;
+}
+.mobile-pokemon-filters input,
+.mobile-pokemon-filters select {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.inventory-item-mark {
+  overflow: hidden;
+  padding: 3px;
+}
+.inventory-item-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.mobile-inventory-row {
+  min-height: 66px;
+}
+.inventory-row-name small {
+  line-height: 1.4;
+}
+.pokemon-inventory-row {
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+}
+.inventory-pokemon-sprite {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--game-copper) 56%, var(--game-wood));
+  border-radius: 11px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--game-wood-light) 42%, var(--game-panel)),
+    var(--game-panel-inset)
+  );
+}
+
+.inventory-pokemon-sprite > span:first-child:not(.pokemon-sprite-fallback) {
+  display: block;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.pokemon-sprite-fallback {
+  color: var(--game-gold);
+  font-size: 1.3rem;
+}
+.pokemon-inventory-stats {
+  grid-column: 2 / -1;
+  color: var(--game-text-muted);
+  font-size: 0.62rem;
+}
+.mobile-inventory-account {
+  margin-bottom: 12px;
+}
+.mobile-inventory-account > h2 {
+  margin: 0;
+  padding: 9px 11px;
+  color: var(--game-gold);
+  font-size: 0.76rem;
+}
+
+@media (max-width: 380px) {
+  .mobile-pokemon-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mobile-pokemon-filters .mobile-field:last-child {
+    grid-column: auto;
+  }
+  .pokemon-inventory-row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+  }
+  .inventory-pokemon-sprite {
+    width: 48px;
+    height: 48px;
+  }
+  .pokemon-inventory-stats {
+    font-size: 0.58rem;
+  }
+}

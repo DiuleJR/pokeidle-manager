@@ -1,0 +1,46 @@
+[package]
+name = "pokeidle-manager"
+version = "0.1.0"
+description = "Unofficial local desktop companion for Pokeidle accounts and game information"
+authors = ["Pokeidle Manager contributors"]
+license = "GPL-3.0-only"
+publish = false
+edition = "2024"
+default-run = "pokeidle-manager"
+
+[lib]
+name = "pokeidle_manager_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[features]
+default = ["community-build"]
+community-build = []
+mobile-local-server = ["dep:axum", "tokio/net"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"], optional = true }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+futures-util = "0.3"
+parking_lot = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.9", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-opener = "2.5"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Registry"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

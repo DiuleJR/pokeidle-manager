@@ -1,0 +1,633 @@
+/* Pokeidle game companion skin — visual-only overrides over the existing UI. */
+:root {
+  color-scheme: dark;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--game-text);
+  background: var(--game-bg);
+}
+
+.app-shell {
+  background:
+    radial-gradient(ellipse at 78% 0%, #70412522, transparent 40%),
+    linear-gradient(135deg, #18131f, #110d17 72%);
+  color: var(--game-text);
+}
+
+.app-shell > aside {
+  flex-basis: 232px;
+  width: 232px;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-right: 4px solid var(--game-wood-light);
+  background: #211821;
+  box-shadow: inset 2px 0 #f2b77766;
+}
+
+.app-shell > aside::before {
+  display: none;
+}
+
+.app-shell .brand {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 74px;
+  padding: 12px 16px;
+  overflow: hidden;
+  border-bottom: 1px solid #e09a5938;
+  background: linear-gradient(145deg, #342331, #201720 78%);
+}
+
+.app-shell .sidebar-brand-mark {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d49a56;
+  border-radius: 11px 4px 11px 4px;
+  color: #ffe5a2;
+  background: linear-gradient(145deg, #58402d, #271d27 65%);
+  box-shadow: inset 0 0 0 3px #d49a561c, 0 3px #130e14;
+  font: 900 1.35rem/1 'Segoe UI', sans-serif;
+  letter-spacing: -0.08em;
+  text-shadow: 0 1px #22151a;
+}
+
+.app-shell .sidebar-brand-copy {
+  color: #f7dfbc;
+  font: 900 0.95rem/1.05 'Segoe UI', sans-serif;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.app-shell .sidebar-brand-copy small {
+  display: block;
+  margin-top: 4px;
+  color: #c99a70;
+  font: 700 0.58rem/1 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 0.21em;
+}
+
+.app-shell .brand .game-brand-ball,
+.app-shell .brand-wordmark {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app-shell .brand .dev-build-badge {
+  position: absolute;
+  z-index: 2;
+  top: 10%;
+  right: 7%;
+  padding: 5px 7px;
+  border: 2px solid #cf9c48;
+  border-radius: 4px;
+  color: #74dfba;
+  background: linear-gradient(180deg, #263b3bdf, #202a34eF);
+  box-shadow: 0 2px #17121c, inset 0 1px #fff5c655;
+  font-size: clamp(0.65rem, 0.85vw, 0.82rem);
+  letter-spacing: 0.1em;
+}
+
+.app-shell .brand b {
+  color: #ffdf57;
+  font-family: 'Arial Black', 'Segoe UI Black', 'Trebuchet MS', sans-serif;
+  font-size: 1.06rem;
+  font-style: italic;
+  letter-spacing: -0.065em;
+  -webkit-text-stroke: 0.55px #702c26;
+  text-shadow: 1px 1px #a64a27, 2px 2px #311824, 0 0 7px #f9a83773;
+}
+
+.app-shell .brand small {
+  color: #fff0d8;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+  text-shadow: 0 1px #32191d, 0 0 4px #f1a53a88;
+}
+
+.app-shell nav {
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 7px 10px 8px;
+}
+
+.app-shell nav button {
+  min-height: 52px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid #8a493a;
+  border-left-width: 4px;
+  border-radius: 7px;
+  color: #f2dfca;
+  background: linear-gradient(180deg, #472736, #321c2d);
+  box-shadow: 0 3px #1b1118, inset 0 1px #ffc07731;
+  font-size: 0.82rem;
+  text-shadow: 0 1px #170e14;
+}
+
+.app-shell .sidebar-nav-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell .sidebar-nav-icon svg,
+.app-shell .sidebar-nav-icon .ui-icon {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+
+.app-shell > aside .sidebar-wallpaper {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 140px;
+  width: 100%;
+  overflow: hidden;
+  border-top: 2px solid #a05a38;
+  background:
+    radial-gradient(ellipse at 22% 82%, #d19a5552 0 1px, transparent 2px),
+    radial-gradient(ellipse at 72% 31%, #e3bd8a2c 0 1px, transparent 2px),
+    radial-gradient(ellipse at 44% 58%, #a9734b29 0 2px, transparent 3px),
+    linear-gradient(155deg, #30232c, #1b171e 72%);
+}
+
+.app-shell > aside .sidebar-wallpaper::after {
+  position: absolute;
+  inset: 18% 12%;
+  border: 1px solid #d8a15a2e;
+  border-radius: 44% 56% 48% 52%;
+  content: '';
+  transform: rotate(-11deg);
+  pointer-events: none;
+}
+
+.app-shell .sidebar-nav-label {
+  min-width: 0;
+}
+
+.app-shell nav button:hover {
+  color: #fff8e8;
+  border-color: #d1844b;
+  background: linear-gradient(180deg, #633648, #46243a);
+}
+
+.app-shell nav button.active {
+  border-color: #f5bb58;
+  border-left-color: #ffe07a;
+  color: #fff8e8;
+  background: linear-gradient(180deg, #ad4dc8, #742895 70%, #59207b);
+  box-shadow: var(--game-shadow-selected), 0 4px #29152d;
+}
+
+.app-shell > aside footer {
+  flex: 0 0 auto;
+  color: #eed0a8;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, #22171f66, #22171feF);
+  border-top: 1px solid #e79a594c;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}
+
+.app-shell .pulse {
+  background: var(--game-green);
+  box-shadow: 0 0 9px #49dc96;
+}
+
+.app-shell > .content {
+  background:
+    radial-gradient(ellipse at 86% 4%, #54602720, transparent 37%),
+    linear-gradient(145deg, #201823, #130f19 70%);
+}
+
+.app-shell .demo-banner {
+  color: #311d13;
+  background: linear-gradient(180deg, #ffd66b, #e59640);
+  border-bottom: 3px solid #743a21;
+  box-shadow: inset 0 1px #fff0a4;
+}
+
+.dashboard.page {
+  padding: 22px 25px;
+  color: var(--game-text);
+}
+
+.dashboard .dashboard-hero {
+  margin: -22px -25px 0;
+  padding: 27px 25px 19px;
+  border: 0;
+  border-top: 3px solid #3a201e;
+  border-bottom: 4px solid var(--game-wood-light);
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse at 76% 50%, #dfaa5b18, transparent 38%),
+    linear-gradient(120deg, #2b1d29, #1b1720 68%, #29202a);
+  box-shadow: inset 0 2px #ffc77b66, inset 0 -2px #23121a;
+}
+
+.dashboard .dashboard-hero::after {
+  display: none;
+}
+
+.dashboard .dashboard-hero-copy {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 418px;
+  width: 418px;
+  height: 91px;
+  min-width: 0;
+  padding: 14px 18px;
+  border: 1px solid #aa7049;
+  border-radius: 8px 3px 8px 3px;
+  background: linear-gradient(120deg, #432a32, #281e29 70%, #35242d);
+  box-shadow: inset 0 0 0 3px #c2864a18, 0 3px #171119;
+}
+
+.dashboard .dashboard-hero-copy::before,
+.dashboard .dashboard-hero-copy::after {
+  display: none;
+}
+
+.dashboard .dashboard-hero-copy h1,
+.dashboard .dashboard-hero-copy .dashboard-hero-subtitle {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+
+.dashboard .dashboard-hero h1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  color: #ffe581;
+  font-family: 'Segoe UI Black', 'Arial Black', 'Segoe UI', sans-serif;
+  font-size: clamp(1.7rem, 2.55vw, 2.35rem);
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  -webkit-text-stroke: 1px #5e3029;
+  text-shadow: 0 2px #8a4a29, 0 4px #371b23, 0 5px 0 #26141a;
+}
+
+.dashboard .dashboard-hero h1::before {
+  content: 'PM';
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d49a56;
+  border-radius: 11px 4px 11px 4px;
+  color: #ffe5a2;
+  background: linear-gradient(145deg, #58402d, #271d27 65%);
+  box-shadow: inset 0 0 0 3px #d49a561c, 0 3px #171119;
+  font: 800 0.75rem/1 'Cascadia Mono', Consolas, monospace;
+  text-shadow: none;
+}
+
+.dashboard .dashboard-hero-subtitle {
+  margin: 4px 0 0 54px;
+  color: #fff1d0;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: clamp(0.53rem, 0.75vw, 0.68rem);
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-align: center;
+  text-shadow: 0 2px #54231f, 0 3px #29151c;
+  text-transform: uppercase;
+}
+
+.dashboard .dashboard-hero .eyebrow {
+  color: #ffd767;
+  text-shadow: 0 2px #431f24;
+}
+
+.dashboard .dashboard-actions .button,
+.app-shell .button {
+  min-height: 40px;
+  border: 2px solid #e19a52;
+  border-radius: var(--game-radius-control);
+  color: #fff4dc;
+  background: linear-gradient(180deg, #9b4d36, #713127 58%, #572422);
+  box-shadow: 0 4px 0 #321918, inset 0 2px #ffd69570, inset 0 -2px #28151d;
+  text-shadow: 0 1px #321617;
+}
+
+.app-shell .button:hover:not(:disabled),
+.app-shell .button.selected {
+  border-color: #ffe27c;
+  color: #fff9e8;
+  background: linear-gradient(180deg, #bb633f, #8b3e32);
+}
+
+.app-shell .button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #321918, inset 0 2px #ffd69555;
+}
+
+.app-shell .button:disabled {
+  opacity: 0.58;
+  filter: saturate(0.6);
+}
+
+.dashboard .dashboard-actions > small {
+  color: #fff2d4;
+  font-weight: 800;
+  text-shadow: 0 2px 3px #150d17, 0 0 7px #100b12d9;
+}
+
+.app-shell :is(button, input, select, textarea):focus-visible {
+  outline: 3px solid #ffe477;
+  outline-offset: 2px;
+}
+
+.dashboard .premium-total {
+  height: 72px;
+  border: 2px solid #c57344;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #502738, #321d31 72%, #2b1928);
+  box-shadow: var(--game-shadow-panel);
+}
+
+.dashboard .premium-total::after {
+  border-color: #ffd76a;
+  opacity: 0.12;
+}
+
+.dashboard .premium-total small {
+  color: #eacb9f;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.59rem;
+  letter-spacing: 0.08em;
+}
+
+.dashboard .premium-total strong {
+  color: var(--game-text);
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  text-shadow: 0 2px #24131a;
+}
+
+.dashboard .premium-total-icon {
+  border: 2px solid #f5c25d;
+  border-radius: 9px;
+  box-shadow: 0 3px #351d1d, inset 0 2px #fff3b94d;
+}
+
+.dashboard .premium-total-xp .premium-total-icon {
+  background: #114bb8;
+}
+
+.dashboard .premium-total-gold .premium-total-icon {
+  background: linear-gradient(145deg, #d18a28, #8e4b22);
+}
+
+.dashboard .premium-total-accounts .premium-total-icon {
+  background: linear-gradient(145deg, #28b975, #13724a);
+}
+
+.dashboard .premium-total-gems .premium-total-icon {
+  background: linear-gradient(145deg, #c957d7, #6b3293);
+}
+
+.dashboard .premium-account-card {
+  padding: 13px 14px 10px;
+  border: 3px solid #c87543;
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, #552d39, #3f2436 60%, #2c1b2c);
+  box-shadow: var(--game-shadow-panel);
+}
+
+.dashboard .premium-account-card:hover {
+  border-color: #f2bd5e;
+  box-shadow: var(--game-shadow-selected), 0 5px #28151c;
+  transform: translateY(-1px);
+}
+
+.dashboard .premium-account-header {
+  padding: 6px 7px 9px;
+  border: 1px solid #d4864c;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #82443d, #5a3040);
+  box-shadow: inset 0 1px #ffe0a652, 0 2px #301a22;
+}
+
+.dashboard .premium-account-card h3,
+.dashboard .premium-account-card .pokemon strong {
+  color: #fff2d6;
+  text-shadow: 0 2px #351b24;
+}
+
+.dashboard .premium-account-card .avatar {
+  border: 2px solid #f6c25d;
+  box-shadow: 0 2px #3d2024, inset 0 1px #fff;
+}
+
+.dashboard .premium-status,
+.dashboard .vip-badge {
+  border-radius: 5px;
+  box-shadow: 0 2px #271620;
+}
+
+.dashboard .premium-status {
+  color: #dcf8d9;
+  border-color: #65d885;
+  background: #195338;
+}
+
+.dashboard .vip-badge {
+  color: #ffdf77;
+  border-color: #d99a3c;
+  background: #58341a;
+}
+
+.dashboard .premium-account-body {
+  gap: 12px;
+  padding: 9px 7px;
+  margin-top: 5px;
+  border: 1px solid #a75f46;
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, #5f493429, transparent 60%),
+    #2a1a27;
+}
+
+.dashboard .account-pokemon-visual {
+  border-radius: 5px;
+  background:
+    radial-gradient(ellipse at 50% 74%, #c48c4920, transparent 46%),
+    linear-gradient(165deg, #2b222a, #17151b 58%, #262029);
+}
+
+.dashboard .premium-account-card .account-pokemon-visual > :is(.pokemon-asset, .pokemon-asset-frame) {
+  position: relative;
+  top: -12px;
+}
+
+.dashboard .premium-account-card :is(.pokemon-asset, .pokemon-asset-frame, .pokemon-asset-fallback) {
+  filter: drop-shadow(0 8px 9px #020b15a8);
+}
+
+.dashboard .premium-hp-row {
+  border-bottom-color: #d2965c61;
+}
+
+.dashboard .premium-hp-row .progress {
+  border: 1px solid #a76b3d;
+  background: #2a1721;
+}
+
+.dashboard .premium-hp-row .progress i {
+  background: linear-gradient(180deg, #83e47d, #32a95f);
+  box-shadow: inset 0 1px #d0ffc477;
+}
+
+.dashboard .premium-metric-grid .account-stat:nth-child(odd),
+.dashboard .premium-metric-grid .account-stat:nth-child(-n + 2) {
+  border-color: #c17c4a69;
+}
+
+.dashboard .account-stat small {
+  color: #e1bb8e;
+}
+
+.dashboard .account-stat strong {
+  color: #fff3df;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}
+
+.dashboard .premium-account-footer {
+  padding: 8px 7px 0;
+  color: #f0d1a8;
+}
+
+.dashboard .premium-account-hunt b {
+  color: #ffdf7c;
+}
+
+.dashboard .premium-account-hunt-timer {
+  color: #72dcad;
+}
+
+.dashboard .premium-account-balances {
+  padding: 4px 7px;
+  border: 1px solid #bd7a44;
+  border-radius: 6px;
+  background: #281822;
+  box-shadow: inset 0 1px #ffe2a322;
+}
+
+@media (max-width: 900px) {
+  .app-shell > aside {
+    width: 100%;
+    gap: 0;
+    padding: 10px 12px;
+    border-right: 3px solid var(--game-frame-shadow);
+    border-bottom: 4px solid var(--game-wood-light);
+  }
+
+  .app-shell > aside .brand {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .app-shell > aside .sidebar-wallpaper {
+    display: none;
+  }
+
+  .app-shell .brand {
+    align-self: flex-start;
+    min-height: 48px;
+    padding: 7px 9px;
+  }
+
+  .app-shell nav {
+    width: 100%;
+    padding: 7px 2px 4px;
+  }
+
+  .app-shell nav button {
+    min-height: 52px;
+  }
+
+  .dashboard.page {
+    padding: 14px 14px 20px;
+  }
+
+  .dashboard .dashboard-hero {
+    margin: -14px -14px 0;
+    padding: 20px 16px 15px;
+  }
+
+  .dashboard .dashboard-hero-copy {
+    flex: 0 1 418px;
+    width: min(100%, 418px);
+    height: auto;
+    aspect-ratio: 418 / 91;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard .premium-total {
+    height: 66px;
+    padding: 8px;
+    gap: 7px;
+  }
+
+  .dashboard .premium-total-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .dashboard .premium-total strong {
+    font-size: 0.92rem;
+  }
+
+  .dashboard .premium-account-card {
+    padding: 10px;
+  }
+
+  .dashboard .premium-account-body {
+    grid-template-columns: minmax(82px, 32%) minmax(0, 1fr);
+    gap: 7px;
+    padding: 6px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-shell nav button:hover,
+  .app-shell .button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell nav button,
+  .app-shell .button,
+  .dashboard .premium-account-card {
+    transition: none !important;
+  }
+}

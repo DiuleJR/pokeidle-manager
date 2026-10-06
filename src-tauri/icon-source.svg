@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3d27b" />
+      <stop offset="0.48" stop-color="#bb7146" />
+      <stop offset="1" stop-color="#68334d" />
+    </linearGradient>
+    <linearGradient id="crystal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8df8a" />
+      <stop offset="0.52" stop-color="#5be1df" />
+      <stop offset="1" stop-color="#7150bb" />
+    </linearGradient>
+    <radialGradient id="shade" cx="50%" cy="36%" r="72%">
+      <stop offset="0" stop-color="#482536" />
+      <stop offset="1" stop-color="#170f1b" />
+    </radialGradient>
+  </defs>
+  <rect x="18" y="18" width="476" height="476" rx="108" fill="url(#shade)" />
+  <rect x="30" y="30" width="452" height="452" rx="96" fill="none" stroke="url(#frame)" stroke-width="18" />
+  <circle cx="256" cy="256" r="165" fill="none" stroke="#b66c53" stroke-opacity=".42" stroke-width="8" />
+  <path d="M256 86 365 256 256 426 147 256Z" fill="url(#crystal)" stroke="#ffe49a" stroke-width="10" stroke-linejoin="round" />
+  <path d="m256 86 0 340M147 256h218" fill="none" stroke="#3d2942" stroke-opacity=".62" stroke-width="8" />
+  <circle cx="256" cy="256" r="30" fill="#fff0b0" stroke="#67394f" stroke-width="8" />
+</svg>

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Pokeidle Manager",
+  "version": "0.1.0",
+  "identifier": "com.pokeidle.manager",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Pokeidle Manager",
+        "width": 1440,
+        "height": 938,
+        "backgroundColor": { "red": 9, "green": 13, "blue": 18, "alpha": 255 },
+        "center": true,
+        "resizable": false,
+        "maximizable": false,
+        "decorations": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/assets/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../LICENSE": "licenses/GPL-3.0-only.txt",
+      "../docs/licenses/CDLA-Permissive-2.0.txt": "licenses/CDLA-Permissive-2.0.txt"
+    },
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "windows": { "wix": { "language": "pt-BR" } }
+  }
+}

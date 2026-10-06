@@ -1,0 +1,61 @@
+:root {
+  --bg-app: #06111d;
+  --bg-surface: #091827;
+  --bg-surface-raised: #0d2234;
+  --border: #24516c;
+  --border-glow: #39cff5;
+  --accent: #41d8ff;
+  --accent-blue: #3187ff;
+  --success: #58e0a7;
+  --gold: #ffc253;
+  --gem: #bd75ff;
+  --text-primary: #eff8ff;
+  --text-secondary: #b5cae2;
+  --text-muted: #7491ad;
+  --radius-card: 12px;
+  --shadow-card: 0 14px 28px #020b144f, inset 0 1px #b1ecff12;
+
+  /* Pokeidle game companion skin. Kept separate from the legacy tokens so
+     the independent mobile dashboard can adopt the theme deliberately. */
+  --game-bg: #17121d;
+  --game-bg-deep: #100d16;
+  --game-panel: #39202d;
+  --game-panel-raised: #512a35;
+  --game-panel-inset: #251722;
+  --game-wood: #713b2b;
+  --game-wood-light: #a95737;
+  --game-copper: #df8850;
+  --game-frame-shadow: #1b1014;
+  --game-purple: #8e38bb;
+  --game-purple-bright: #ce67f2;
+  --game-purple-deep: #4c245d;
+  --game-gold: #ffd45c;
+  --game-gold-dark: #a95b1c;
+  --game-green: #50d18a;
+  --game-blue: #55c8f6;
+  --game-danger: #f15d67;
+  --game-text: #fff4dc;
+  --game-text-soft: #e1cbb4;
+  --game-text-muted: #b4968a;
+  --game-bevel-light: #ffc17a;
+  --game-bevel-dark: #512618;
+  --game-border-thin: 1px solid #8f4b37;
+  --game-border-frame: 2px solid #e08a51;
+  --game-shadow-panel:
+    0 5px 0 #2b1719,
+    0 8px 18px #07050bb3,
+    inset 0 2px 0 #ffd3945c,
+    inset 0 -3px 0 #1c1018;
+  --game-shadow-selected:
+    0 0 0 2px #ffdf73,
+    0 0 0 5px #6e337e,
+    0 0 16px #d966ed80,
+    inset 0 2px 0 #fff0b9;
+  --game-radius-panel: 10px;
+  --game-radius-control: 7px;
+  --game-space-1: 4px;
+  --game-space-2: 8px;
+  --game-space-3: 12px;
+  --game-space-4: 16px;
+  --game-space-5: 24px;
+}

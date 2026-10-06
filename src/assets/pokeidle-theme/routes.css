@@ -1,0 +1,1658 @@
+/* Route-only game skin. Keeps the existing component geometry, scrolling and
+   virtualized row metrics intact; this file changes presentation only. */
+
+.automation-route .automation-page,
+.account-detail-route .account-detail-page,
+.inventory-page,
+.market-page,
+.page.settings {
+  color: var(--game-text);
+}
+
+/* Shared controls and feedback, scoped to the routes owned by this sheet. */
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  :is(input, select, textarea) {
+  border-color: #a55b49;
+  border-radius: var(--game-radius-control);
+  background-color: var(--game-panel-inset);
+  color: var(--game-text);
+  accent-color: var(--game-purple-bright);
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  :is(input, select, textarea)::placeholder {
+  color: #b9958d;
+  opacity: 1;
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  :is(input, select, textarea):focus-visible,
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  button:focus-visible,
+.market-page .market-table-scroll:focus-visible {
+  outline: 2px solid var(--game-gold);
+  outline-offset: 2px;
+  border-color: var(--game-purple-bright);
+  box-shadow: 0 0 0 3px #ce67f238;
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  .button {
+  border-color: #a95747;
+  border-radius: var(--game-radius-control);
+  background: linear-gradient(180deg, #794033, #582c2e);
+  color: var(--game-text);
+  box-shadow: 0 2px 0 #311a20, inset 0 1px #ffcf8861;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  .button:hover:not(:disabled) {
+  border-color: var(--game-bevel-light);
+  background: linear-gradient(180deg, #99513c, #673432);
+  box-shadow: 0 2px 0 #311a20, inset 0 1px #fff0ae80;
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  .button.selected,
+.inventory-page .tabs button.active,
+.inventory-page .item-filters button.active,
+.market-page .market-item-options button[aria-selected='true'] {
+  border-color: #f4cc69;
+  background: linear-gradient(180deg, #71377e, #482859);
+  color: #fff1bd;
+  box-shadow: var(--game-shadow-selected);
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  .button:disabled {
+  border-color: #76504a;
+  background: #392b31;
+  color: #b39a91;
+  box-shadow: none;
+}
+
+:is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+  .muted,
+.market-page .market-pulse-heading small,
+.market-page .market-section-heading > span,
+.market-page .market-offers-heading > span {
+  color: var(--game-text-muted);
+}
+
+/* Automation route */
+.automation-route .automation-hero {
+  border-bottom-color: #d88055;
+  box-shadow: inset 0 -3px #3a1c25;
+}
+
+.automation-route .automation-hero h1,
+.inventory-page .inventory-heading h1,
+.market-page .market-header h1,
+.page.settings > h1 {
+  color: var(--game-text);
+  text-shadow: 0 2px 0 #381d27, 0 4px 16px #07050acc;
+}
+
+.automation-route .automation-hero h1::after,
+.inventory-page .inventory-heading .eyebrow::after,
+.market-page .market-header .eyebrow::after,
+.page.settings > .eyebrow::after {
+  color: var(--game-gold);
+}
+
+.automation-route .automation-account-bar,
+.automation-route .hunt-control,
+.automation-route .combat-preference-card,
+.automation-route .automation-card,
+.automation-route .combat-lock {
+  border-color: #965542;
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(160deg, #512a35, #35202e 72%);
+  box-shadow: var(--game-shadow-panel);
+}
+
+.automation-route .automation-account-bar-heading,
+.automation-route .automation-panel-heading,
+.automation-route .automation-section-label,
+.automation-route .automation-page .hunt-search > label,
+.automation-route .combat-selection-title,
+.automation-route .automation-card-copy p,
+.automation-route .threshold,
+.automation-route .auto-buy-item label {
+  color: var(--game-text-soft);
+}
+
+.automation-route .automation-account-bar .button,
+.automation-route .combat-item-choice,
+.automation-route .automation-card .button {
+  border-color: #995b47;
+  background: linear-gradient(180deg, #6e3a36, #492832);
+  color: var(--game-text);
+}
+
+.automation-route .automation-account-bar .account-select-all,
+.automation-route .automation-account-bar .account-selection-chip.selected,
+.automation-route .automation-account-bar .account-select-all.selected,
+.automation-route .combat-item.selected {
+  border-color: #edc35f;
+  background: linear-gradient(145deg, #6d3778, #41254f);
+  color: #fff2c2;
+  box-shadow: 0 0 0 1px #f6d78273, inset 0 1px #fff0b75c;
+}
+
+.automation-route .automation-card-buy {
+  border-color: #b06b4d;
+  background: linear-gradient(145deg, #5b3036, #3c2231);
+}
+
+.automation-route .automation-card h3,
+.automation-route .automation-page .combat-selection-title strong,
+.automation-route .automation-page .hunt-control h2 {
+  color: var(--game-text);
+}
+
+.automation-route .automation-card-icon {
+  border-color: #a65f4e;
+  box-shadow: inset 0 1px #ffe0a34f, 0 2px 0 #311a20;
+}
+
+.automation-route .switch-track {
+  border-color: #a56656;
+  background: #33212c;
+}
+
+.automation-route .switch[aria-checked='true'] .switch-track {
+  border-color: #d79560;
+  background: linear-gradient(90deg, #613879, #a04385);
+}
+
+.automation-route .switch-thumb {
+  background: #ffe5a5;
+}
+
+.automation-route .automation-page .hunt-results,
+.automation-route .automation-page .combat-item,
+.automation-route .auto-buy-item {
+  border-color: #79494a;
+  background-color: #2e1e2b;
+}
+
+.automation-route .automation-page .hunt-results button:hover,
+.automation-route .automation-page .combat-item-choice:hover:not(:disabled) {
+  border-color: var(--game-gold);
+  background: #55304e;
+}
+
+.automation-route .automation-page .hunt-results small,
+.automation-route .automation-page .combat-item-quantity,
+.automation-route .auto-buy-incompatible {
+  color: var(--game-text-muted);
+}
+
+.automation-route .auto-buy-feedback-success { color: var(--game-green); }
+.automation-route .auto-buy-feedback-error,
+.automation-route .automation-error { color: #ff9a91; }
+
+/* Account details */
+.account-detail-route .detail-card-heading h2 {
+  color: var(--game-gold);
+}
+
+.account-detail-route .account-detail-header-actions .detail-back {
+  border-color: #bb684d;
+  background: linear-gradient(180deg, #743e37, #4c2931);
+  color: var(--game-text);
+}
+
+.account-detail-route .account-detail-header-actions .detail-open-browser {
+  border-color: #51c8ef;
+  background: linear-gradient(180deg, #187dab, #105174);
+  color: #f1fbff;
+  box-shadow: 0 2px 0 #092f46, inset 0 1px #c0f1ff5c;
+}
+
+.account-detail-route .account-detail-header-actions .detail-return-background {
+  border-color: #62d68c;
+  background: linear-gradient(180deg, #25864d, #175c38);
+  color: #f2fff5;
+  box-shadow: 0 2px 0 #103c26, inset 0 1px #d0ffe052;
+}
+
+.account-detail-route .account-detail-header-actions .detail-actions .danger-button {
+  border-color: #ff687a;
+  background: linear-gradient(180deg, #b6384b, #812637);
+  color: #fff4f4;
+  box-shadow: 0 2px 0 #4a1723, inset 0 1px #ffd2d766;
+}
+
+.account-detail-route .account-detail-header-actions .detail-open-browser:hover:not(:disabled) {
+  border-color: #b3f0ff;
+  background: linear-gradient(180deg, #2597c9, #14658c);
+}
+
+.account-detail-route .account-detail-header-actions .detail-return-background:hover:not(:disabled) {
+  border-color: #bbffd0;
+  background: linear-gradient(180deg, #33a861, #207647);
+}
+
+.account-detail-route .account-detail-header-actions .detail-actions .danger-button:hover:not(:disabled) {
+  border-color: #ffc0c8;
+  background: linear-gradient(180deg, #d34a5c, #9b2d41);
+}
+
+.account-detail-route .detail-statuses .badge,
+.account-detail-route .detail-mode,
+.account-detail-route .detail-uptime {
+  border-color: #9f6250;
+  background: #2b1a29e8;
+  color: var(--game-text-soft);
+}
+
+.account-detail-route .detail-premium-card {
+  border-color: #985641;
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #512a35, #35202e 78%);
+  box-shadow: var(--game-shadow-panel);
+}
+
+.account-detail-route .detail-heading-icon,
+.account-detail-route .detail-automation-icon,
+.account-detail-route .detail-event-icon {
+  border-color: #a95e4b;
+  background: linear-gradient(150deg, #743d3d, #4a2a37);
+  color: #ffe5a1;
+}
+
+.account-detail-route .detail-card-heading {
+  border-bottom-color: #a75b44;
+}
+
+.account-detail-route .detail-info-list > div,
+.account-detail-route .detail-automation-list > div,
+.account-detail-route .detail-event-list > div,
+.account-detail-route .detail-farm-stats > div {
+  border-bottom-color: #895144;
+}
+
+.account-detail-route .detail-info-list dt,
+.account-detail-route .detail-farm-stats dt,
+.account-detail-route .detail-event-list time,
+.account-detail-route .detail-automation-list .badge {
+  color: var(--game-text-muted);
+}
+
+.account-detail-route .detail-info-list dd,
+.account-detail-route .detail-farm-stats dd,
+.account-detail-route .detail-metrics-grid b,
+.account-detail-route .detail-automation-list strong {
+  color: var(--game-text);
+}
+
+.account-detail-route .detail-account-avatar {
+  border: 2px solid #ffd071;
+  box-shadow: 0 2px 0 #311a20, inset 0 1px #fff4c875;
+}
+
+.account-detail-route .detail-type-badges b,
+.account-detail-route .detail-stat-chips span,
+.account-detail-route .detail-drop-list span {
+  border-color: #9b5a4a;
+  background: #2d1c2a;
+  color: var(--game-text-soft);
+}
+
+.account-detail-route .detail-meter .progress {
+  background: #281822;
+}
+
+.account-detail-route .detail-meter .progress i {
+  background: linear-gradient(90deg, #9446b1, #e17bc4);
+  box-shadow: 0 0 9px #d764c26b;
+}
+
+.account-detail-route .detail-meter-green .progress i {
+  background: linear-gradient(90deg, #38a968, #79df8d);
+}
+
+.account-detail-route .detail-event-list::-webkit-scrollbar-thumb {
+  background: #995642;
+}
+
+/* Inventory: cosmetic rules deliberately avoid virtual-grid sizing and row height. */
+.inventory-page .inventory-heading .eyebrow,
+.inventory-page .inventory-account,
+.inventory-page .pokemon-controls label,
+.inventory-page .protocol-locks > span {
+  color: var(--game-text-soft);
+}
+
+.inventory-page .inventory-workspace {
+  border: var(--game-border-frame);
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #432431, #2b1b29 78%);
+  box-shadow: var(--game-shadow-panel);
+}
+
+.inventory-page .inventory-toolbar,
+.inventory-page .pokemon-controls,
+.inventory-page .protocol-locks {
+  border-color: #8d5040;
+}
+
+.inventory-page .inventory-tabs button,
+.inventory-page .item-filters button {
+  border-color: #9d5b49;
+  border-radius: var(--game-radius-control);
+  background: linear-gradient(180deg, #60353a, #432531);
+  color: var(--game-text-soft);
+}
+
+.inventory-page .item-grid-scroll,
+.inventory-page .pokemon-grid-scroll {
+  scrollbar-color: #a55c43 #251722;
+}
+
+.inventory-page .item-grid-scroll::-webkit-scrollbar-track,
+.inventory-page .pokemon-grid-scroll::-webkit-scrollbar-track {
+  background: #251722;
+}
+
+.inventory-page .item-grid-scroll::-webkit-scrollbar-thumb,
+.inventory-page .pokemon-grid-scroll::-webkit-scrollbar-thumb {
+  border: 1px solid #d27b4c;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ba6942, #743b38);
+}
+
+.inventory-page .item-card,
+.inventory-page .depot-card {
+  border: 1px solid #925342;
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #59303a, #36212f 82%);
+  box-shadow: 0 3px 0 #27151c, inset 0 1px #ffe0a43d;
+  color: var(--game-text);
+}
+
+.inventory-page .item-card:hover,
+.inventory-page .depot-card:hover {
+  border-color: #ecc16a;
+  box-shadow: 0 3px 0 #27151c, 0 0 0 1px #eabf695c, inset 0 1px #fff0b359;
+}
+
+.inventory-page .item-card small,
+.inventory-page .depot-owner,
+.inventory-page .depot-card > p,
+.inventory-page .depot-card dt {
+  color: var(--game-text-muted);
+}
+
+.inventory-page .item-icon,
+.inventory-page .pokemon-sprite {
+  border-color: #8b4b43;
+  background: #281923;
+}
+
+.inventory-page .depot-card dl {
+  border-top-color: #895144;
+  color: var(--game-text-soft);
+}
+
+.inventory-page .depot-flags span {
+  border-color: #bd8a48;
+  background: #513335;
+  color: #ffe5a1;
+}
+
+.inventory-page .protocol-locks {
+  border: 1px solid #87503f;
+  border-radius: var(--game-radius-control);
+  background: #2b1b29;
+}
+
+.inventory-page .confirm-layer > .card {
+  border: var(--game-border-frame);
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(160deg, #512a35, #2a1927);
+  box-shadow: var(--game-shadow-panel);
+  color: var(--game-text);
+}
+
+/* Market: preserve the table's existing grid, dense rows and scroll viewports. */
+.market-page .market-header {
+  border-bottom: 2px solid #a9583f;
+}
+
+.market-page .market-header .eyebrow,
+.market-page .market-analysis-heading .eyebrow,
+.market-page .market-section-heading .eyebrow {
+  color: var(--game-gold);
+}
+
+.market-page .market-analysis,
+.market-page .market-sniper {
+  border: var(--game-border-frame);
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #432431, #2a1a28 76%);
+  box-shadow: var(--game-shadow-panel);
+}
+
+.market-page .market-section-heading,
+.market-page .market-offers-heading,
+.market-page .market-filters,
+.market-page .market-table-head,
+.market-page .market-pulse-heading,
+.market-page .market-sales-head,
+.market-page .market-history-heading {
+  border-color: #8e5041;
+}
+
+.market-page .market-pulse-card,
+.market-page .market-rule-editor,
+.market-page .market-rule,
+.market-page .market-purchase-history {
+  border-color: #975641;
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #57303a, #35202e 80%);
+  box-shadow: 0 3px 0 #27151c, inset 0 1px #ffd69b48;
+}
+
+.market-page .market-pulse-heading h3,
+.market-page .market-offers-heading h2,
+.market-page .market-section-heading h2,
+.market-page .market-rule-editor-copy h3,
+.market-page .market-rule h3,
+.market-page .market-history-heading h3 {
+  color: var(--game-text);
+}
+
+.market-page .market-pulse-heading small,
+.market-page .market-sales-head,
+.market-page .market-top-sales-head,
+.market-page .market-table-head,
+.market-page .market-period,
+.market-page .market-rule-editor label,
+.market-page .market-rule-advanced summary,
+.market-page .market-rule-metrics dt,
+.market-page .market-history-heading label {
+  color: var(--game-text-muted);
+}
+
+.market-page .market-pulse-row,
+.market-page .market-table-row,
+.market-page .market-history-row {
+  border-bottom-color: #805043;
+}
+
+.market-page .market-pulse-row:hover,
+.market-page .market-table-row:hover,
+.market-page .market-history-row:hover {
+  background: linear-gradient(90deg, #6d3c4c8c, transparent);
+}
+
+.market-page .market-pulse-copy b,
+.market-page .market-item b,
+.market-page .market-history-item b,
+.market-page .market-rule-title,
+.market-page .market-rule-metrics dd {
+  color: var(--game-text);
+}
+
+.market-page .market-pulse-copy small,
+.market-page .market-sales-head,
+.market-page .market-rule-metrics dd small,
+.market-page .market-history-outcome strong small {
+  color: var(--game-text-soft);
+}
+
+.market-page .market-gold-value,
+.market-page .market-top-sales-value.market-gold-value,
+.market-page .market-sale-price.market-gold-value {
+  color: var(--game-gold);
+}
+
+.market-page .market-gem-value,
+.market-page .market-top-sales-value.market-gem-value,
+.market-page .market-sale-price.market-gem-value {
+  color: #e7a4ff;
+}
+
+.market-page .market-table-scroll,
+.market-page .market-history-list,
+.market-page .market-pulse-list,
+.market-page .market-item-options {
+  scrollbar-color: #a65b43 #251722;
+}
+
+.market-page .market-table-scroll::-webkit-scrollbar-track,
+.market-page .market-history-list::-webkit-scrollbar-track,
+.market-page .market-pulse-list::-webkit-scrollbar-track,
+.market-page .market-item-options::-webkit-scrollbar-track {
+  background: #251722;
+}
+
+.market-page .market-table-scroll::-webkit-scrollbar-thumb,
+.market-page .market-history-list::-webkit-scrollbar-thumb,
+.market-page .market-pulse-list::-webkit-scrollbar-thumb,
+.market-page .market-item-options::-webkit-scrollbar-thumb {
+  border: 1px solid #d27b4c;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ba6942, #743b38);
+}
+
+.market-page .market-rule-advanced,
+.market-page .market-item-options,
+.market-page .market-selected-item {
+  border-color: #8c4c42;
+  background: #2a1a28;
+  color: var(--game-text);
+}
+
+.market-page .market-item-options button {
+  color: var(--game-text-soft);
+}
+
+.market-page .market-item-options button:hover {
+  background: #55304e;
+  color: var(--game-text);
+}
+
+.market-page .market-rule-budget-track {
+  background: #251722;
+}
+
+.market-page .market-rule-budget-track i {
+  background: linear-gradient(90deg, #50b96a, #b7df63);
+}
+
+.market-page .market-rule-error,
+.market-page .market-reader-error,
+.market-page .market-purchase-history .market-history-status.lost {
+  color: #ff9b91;
+}
+
+.market-page .market-empty,
+.market-page .market-pulse-empty,
+.market-page .market-disclosure,
+.market-page .market-rule-create > p,
+.automation-route [role='status'],
+.automation-route [role='alert'],
+.account-detail-route .detail-empty-state,
+.inventory-page .muted {
+  color: var(--game-text-soft);
+}
+
+.market-page .market-reader-error,
+.market-page .market-rule-error,
+.account-detail-route .error-message {
+  border-color: #b95058;
+  color: #ffb0a6;
+}
+
+.market-page .market-purchase-history .market-history-status.purchased {
+  color: #86df98;
+}
+
+.market-page .market-history-row.lost-lottery {
+  background: linear-gradient(90deg, #49262f, transparent);
+}
+
+/* Settings & diagnostics */
+.page.settings > .card {
+  border-color: #965541;
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #512a35, #34202e 78%);
+  box-shadow: var(--game-shadow-panel);
+  color: var(--game-text);
+}
+
+.page.settings .startup-concurrency-heading h2,
+.page.settings .community-project-heading h2,
+.page.settings .protocol-inspector h2 {
+  color: var(--game-text);
+}
+
+.page.settings .startup-concurrency-heading p,
+.page.settings .startup-concurrency-note,
+.page.settings .community-project-card .muted {
+  color: var(--game-text-soft);
+}
+
+.page.settings .community-project-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.page.settings .community-project-heading h2 {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+}
+
+.page.settings .community-project-heading p { margin: 0; }
+
+.page.settings .community-project-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 18px 0 12px;
+}
+
+.page.settings .community-project-status span {
+  padding: 8px 11px;
+  border: 1px solid #896044;
+  border-radius: 999px;
+  background: #2a1a28;
+  color: #f2d886;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.page.settings .community-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.page.settings .community-project-actions button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.page.settings .startup-concurrency-options button {
+  border-color: #905142;
+  border-radius: var(--game-radius-control);
+  background: #2a1a28;
+  color: var(--game-text-soft);
+}
+
+.page.settings .startup-concurrency-options button:hover,
+.page.settings .startup-concurrency-options button.selected {
+  border-color: #edc35f;
+  background: linear-gradient(145deg, #683773, #40254e);
+  color: #fff2c2;
+  box-shadow: 0 0 0 1px #f6d78273, inset 0 1px #fff0b75c;
+}
+
+.page.settings .startup-concurrency-options button strong {
+  color: var(--game-gold);
+}
+
+.page.settings .protocol-inspector .protocol-frame {
+  border-color: #895144;
+  background: #2a1a28;
+  color: var(--game-text-soft);
+}
+
+.page.settings .protocol-inspector .protocol-frame:hover {
+  border-color: var(--game-gold);
+  background: #46283d;
+}
+
+.page.settings .protocol-frame code {
+  color: #e6cfb7;
+}
+
+.page.settings .frame-list {
+  scrollbar-color: #a65b43 #251722;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.automation-route, .account-detail-route, .inventory-page, .market-page, .page.settings)
+    .button {
+    transition: none;
+  }
+}
+
+/* One shared panorama and title plaque keep the five primary routes coherent. */
+.shared-page-header {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  min-width: 0;
+  min-height: 156px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 28px);
+  overflow: hidden;
+  padding: 10px clamp(16px, 2.2vw, 34px);
+  border: 3px solid #3a201e;
+  border-bottom: 4px solid var(--game-wood-light);
+  background:
+    radial-gradient(ellipse at 76% 50%, #d6a45a20, transparent 40%),
+    linear-gradient(125deg, #382632, #211a24 58%, #30212b);
+  box-shadow: inset 0 2px #ffc77b66, inset 0 -2px #23121a;
+}
+
+.shared-page-header::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(90deg, #170f1855, transparent 48%, #170f1840);
+  content: '';
+  pointer-events: none;
+}
+
+.shared-page-header-plaque {
+  position: relative;
+  flex: 0 1 clamp(300px, 42%, 500px);
+  min-width: 0;
+  aspect-ratio: 3 / 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid #bd8150;
+  border-radius: 11px 4px 11px 4px;
+  background:
+    linear-gradient(135deg, transparent 0 10px, #3c2934 10px calc(100% - 10px), transparent calc(100% - 10px)),
+    linear-gradient(125deg, #d39a5424, transparent 55%);
+  box-shadow: inset 0 0 0 3px #d39a5417, 0 3px #171119;
+}
+
+.shared-page-header-plaque::before,
+.shared-page-header-plaque::after {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #e0b16c;
+  background: #372532;
+  content: '';
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.shared-page-header-plaque::before { left: 10px; }
+.shared-page-header-plaque::after { right: 10px; }
+
+.shared-page-header-copy {
+  position: relative;
+  width: 84%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: #fff0c4;
+  text-align: center;
+  text-shadow: 0 2px #814326, 0 4px #371b23, 0 5px 0 #26141a;
+}
+
+.shared-page-header-copy h1 {
+  max-width: 100%;
+  margin: 0;
+  color: #ffe581;
+  font-family: 'Segoe UI Black', 'Arial Black', 'Segoe UI', sans-serif;
+  font-size: clamp(1rem, 3.2cqi, 1.6rem);
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  line-height: 1;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  text-transform: uppercase;
+  -webkit-text-stroke: 0.7px #5e3029;
+}
+
+.shared-page-header-actions {
+  position: relative;
+  z-index: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 48%;
+}
+
+.shared-page-header-actions > .dashboard-actions {
+  align-items: flex-end;
+}
+
+.shared-page-header-actions .market-reader-status {
+  justify-content: flex-end;
+}
+
+.shared-page-header-actions .market-reader-status label {
+  color: #fff0c4;
+  text-shadow: 0 1px #351b22;
+}
+
+.shared-page-header-actions .inventory-account {
+  color: #fff0c4;
+  text-shadow: 0 1px #351b22;
+}
+
+.premium-account-card .mode-browser::before {
+  content: none;
+}
+
+.premium-account-card .mode-browser img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.premium-account-card .mode-background img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.dashboard .shared-page-header {
+  grid-row: 1;
+  min-height: 156px;
+  margin: -22px -25px 0;
+}
+
+.dashboard {
+  grid-template-rows: 156px 72px minmax(0, 1fr);
+}
+
+.dashboard.empty-page {
+  display: block;
+  text-align: left;
+}
+
+.dashboard.empty-page > .shared-page-header {
+  margin-bottom: 18px;
+}
+
+.automation-page > .shared-page-header {
+  min-height: 132px;
+  margin: 0 -30px 14px;
+}
+
+.inventory-page > .shared-page-header,
+.market-page > .shared-page-header,
+.page.settings > .shared-page-header {
+  margin: -24px -30px 16px;
+}
+
+.inventory-page > .shared-page-header {
+  grid-row: 1;
+}
+
+.page.settings {
+  max-width: none;
+}
+
+.page.settings > .card {
+  max-width: 700px;
+}
+
+@media (max-width: 760px) {
+  .shared-page-header {
+    min-height: 190px;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    padding: 8px 14px 12px;
+  }
+
+  .shared-page-header-plaque {
+    flex: 0 1 auto;
+    width: min(100%, 430px);
+  }
+
+  .shared-page-header-copy h1 {
+    font-size: clamp(1rem, 3.2cqi, 1.5rem);
+  }
+
+  .shared-page-header-actions {
+    max-width: 100%;
+    align-self: flex-end;
+    margin-top: -8px;
+  }
+
+  .shared-page-header-actions .market-reader-status {
+    justify-content: flex-end;
+  }
+
+  .dashboard {
+    grid-template-rows: 190px auto minmax(0, 1fr);
+  }
+
+  .inventory-page > .shared-page-header,
+  .market-page > .shared-page-header,
+  .page.settings > .shared-page-header {
+    margin-top: -20px;
+    margin-inline: -20px;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard .shared-page-header {
+    min-height: 156px;
+    margin: -14px -14px 0;
+  }
+
+  .automation-page > .shared-page-header {
+    margin-inline: -20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .shared-page-header-actions .market-reader-status {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+}
+
+.where-hunt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.where-hunt-page > .shared-page-header {
+  margin: -24px -30px 0;
+}
+
+.where-hunt-account {
+  display: grid;
+  gap: 4px;
+  color: #fff0c4;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-shadow: 0 1px #351b22;
+}
+
+.where-hunt-account > label {
+  text-shadow: 0 2px 3px rgb(0 0 0 / 78%);
+}
+
+.where-hunt-account select,
+.where-hunt-controls input {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #e39b57;
+  border-radius: 8px;
+  color: #fff1ce;
+  background: #281821;
+}
+
+.where-hunt-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr);
+  gap: 14px;
+}
+
+.where-hunt-active,
+.where-hunt-bonus-card,
+.where-hunt-results {
+  min-width: 0;
+  padding: 16px;
+  border: 2px solid #a85d45;
+  border-radius: 11px;
+  background: linear-gradient(150deg, #492a38, #2b1a28 82%);
+  box-shadow: inset 0 1px #ffe09b35, 0 4px #1b101a;
+}
+
+.where-hunt-active,
+.where-hunt-bonus-card {
+  height: 316px;
+}
+
+.where-hunt-active {
+  display: flex;
+  flex-direction: column;
+}
+
+.where-hunt-active > .where-hunt-card-label {
+  margin-bottom: 14px;
+  font-size: 0.92rem;
+}
+
+.where-hunt-card-label {
+  margin: 0 0 10px;
+  color: #ffd664;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.where-hunt-active-layout {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: start;
+  align-items: stretch;
+  gap: 20px 14px;
+}
+
+.where-hunt-active-art {
+  grid-row: 1 / span 2;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #a45d4c;
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 50% 80%, #a45b4738, transparent 62%),
+    linear-gradient(145deg, #2b1b2a, #1c1421);
+  box-shadow: inset 0 1px #ffe09b14, 0 3px #20131e;
+}
+
+.where-hunt-active-art > .pokemon-asset,
+.where-hunt-active-art > .pokemon-asset-frame,
+.where-hunt-active-art > .pokemon-asset-fallback {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 8px 8px #1009109c);
+  image-rendering: pixelated;
+}
+
+.where-hunt-active-heading {
+  min-width: 0;
+  align-items: stretch;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.where-hunt-active-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #8c514b;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #372331, #261824 82%);
+  box-shadow: inset 0 1px #ffe09b12, 0 2px #1a111b;
+}
+
+.where-hunt-active-copy h2,
+.where-hunt-results-head h2 {
+  margin: 0;
+  color: #fff0c8;
+  font-size: 1.2rem;
+}
+
+.where-hunt-active-copy h2 {
+  position: relative;
+  padding-bottom: 8px;
+  font-size: 1.72rem;
+}
+
+.where-hunt-active-copy h2::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #c27a58 12%, #9c5b5e 78%, transparent);
+  content: '';
+}
+
+.where-hunt-active-copy p,
+.where-hunt-bonus-card p {
+  margin: 8px 0 0;
+  color: #d7c0bb;
+}
+
+.where-hunt-iv-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-self: start;
+  gap: 6px;
+}
+
+.where-hunt-iv-card {
+  min-width: 0;
+  height: 94px;
+  display: grid;
+  grid-template-rows: 35px auto 1fr;
+  justify-items: center;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 3px 5px;
+  border: 1px solid color-mix(in srgb, var(--iv-color) 55%, #74434b);
+  border-radius: 8px;
+  color: #fff2d5;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--iv-color) 12%, #301c2a), #211722 82%);
+  box-shadow: inset 0 1px #ffffff0c, 0 2px #160e18;
+  text-align: center;
+}
+
+.where-hunt-iv-icon {
+  width: 33px;
+  height: 33px;
+  display: grid;
+  place-items: center;
+}
+
+.where-hunt-iv-icon .ui-icon {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 1px 2px #100810b3);
+}
+
+.where-hunt-iv-icon-spDef {
+  color: var(--iv-color);
+}
+
+.where-hunt-iv-icon-speed {
+  color: var(--iv-color);
+}
+
+.where-hunt-iv-card small,
+.where-hunt-quality small,
+.where-hunt-stat small {
+  color: #cda9a5;
+  font-size: 0.59rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.where-hunt-iv-card small {
+  color: #ead1c4;
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.where-hunt-iv-card strong {
+  align-self: end;
+  color: #ffe17c;
+  font: 900 1.32rem/1 'Segoe UI', sans-serif;
+  text-shadow: 0 1px #451f27;
+}
+
+.where-hunt-iv-card-hp { --iv-color: #ff5b71; }
+.where-hunt-iv-card-atk { --iv-color: #f87852; }
+.where-hunt-iv-card-def { --iv-color: #3daeff; }
+.where-hunt-iv-card-spAtk { --iv-color: #d75fea; }
+.where-hunt-iv-card-spDef { --iv-color: #51d48c; }
+.where-hunt-iv-card-speed { --iv-color: #f4c24f; }
+
+.where-hunt-quality {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  min-width: 104px;
+  padding: 7px 10px;
+  border: 1px solid #9e684f;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #3b2430, #251824);
+  box-shadow: inset 0 1px #ffe09b12;
+  text-align: center;
+}
+
+.where-hunt-quality strong {
+  color: #ffe071;
+  font-size: 1.1rem;
+}
+
+.where-hunt-quality .where-hunt-potency-p1 .badge {
+  border: 1px solid #aab2bf;
+  color: #d6dbe3;
+  background: #343a45;
+}
+
+.where-hunt-quality .where-hunt-potency-p2 .badge {
+  border: 1px solid #55c978;
+  color: #8af0a4;
+  background: #193c29;
+}
+
+.where-hunt-quality .where-hunt-potency-p3 .badge {
+  border: 1px solid #56aaf5;
+  color: #91ceff;
+  background: #19324d;
+}
+
+.where-hunt-quality .where-hunt-potency-p4 .badge {
+  border: 1px solid #b978ee;
+  color: #d5a3ff;
+  background: #37234b;
+}
+
+.where-hunt-quality .where-hunt-potency-p5 .badge {
+  border: 1px solid #e4bd42;
+  color: #ffe577;
+  background: #493b18;
+}
+
+.where-hunt-bonus-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 14px;
+  border-color: #cf8644;
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 50% -20%, #78405566, transparent 58%),
+    linear-gradient(150deg, #211327, #170f1e 78%);
+  box-shadow: 0 0 0 2px #35213c, inset 0 0 0 1px #ffcf6955, inset 0 0 0 5px #23152a, 0 4px #1b101a;
+}
+
+.where-hunt-bonus-title {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px 1px;
+  color: #ffe07a;
+  font-family: 'Segoe UI Black', 'Arial Black', 'Segoe UI', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow: 0 1px #803f35, 0 2px #130c19;
+}
+
+.where-hunt-bonus-title > span {
+  color: #dc9847;
+  font-size: 0.74rem;
+}
+.where-hunt-bonus-title > span .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.where-hunt-bonus-title > span:first-child {
+  text-align: right;
+}
+
+.where-hunt-bonus-title > span:last-child {
+  text-align: left;
+}
+
+.where-hunt-bonus-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.where-hunt-bonus-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(78px, auto);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 2px 5px;
+  border: 1px solid #52364f;
+  border-radius: 8px;
+  background: linear-gradient(100deg, #1b1021, #29162b 63%, #261820);
+  box-shadow: inset 0 1px #f2cc7725, 0 2px #100a13;
+}
+
+.where-hunt-bonus-row[data-active='false'] {
+  filter: grayscale(1);
+  opacity: 0.62;
+}
+
+.where-hunt-bonus-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid #b9753b;
+  border-radius: 7px;
+  background: linear-gradient(145deg, #281626, #140e19);
+  box-shadow: inset 0 0 0 2px #1d1220, inset 0 0 12px #e2a24b28;
+}
+
+.where-hunt-bonus-icon {
+  padding: 4px;
+}
+
+.where-hunt-bonus-icon .ui-icon {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 1px 2px #1a1117);
+}
+
+.where-hunt-bonus-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff0d1;
+  font-size: 0.83rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.where-hunt-bonus-value {
+  display: grid;
+  min-width: 74px;
+  min-height: 31px;
+  padding: 2px 7px;
+  place-items: center;
+  border: 1px solid #de9a42;
+  border-radius: 7px;
+  color: #ffe477;
+  background: linear-gradient(180deg, #492820, #2c191f);
+  box-shadow: inset 0 0 0 1px #ffdc6b35, 0 0 10px #f5a63322;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-shadow: 0 1px #863e28, 0 0 8px #f7b83f55;
+  white-space: nowrap;
+}
+
+.where-hunt-bonus-empty {
+  margin: 0;
+  padding: 12px 8px;
+  border: 1px solid #52364f;
+  border-radius: 8px;
+  color: #d7c0bb;
+  background: #1b1021;
+  text-align: center;
+}
+
+.where-hunt-bonus-card > small {
+  display: block;
+  margin: 0 4px;
+  color: #cda9a5;
+  line-height: 1.4;
+}
+
+.where-hunt-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #9d5d51;
+}
+
+.where-hunt-results-head .where-hunt-card-label {
+  margin-bottom: 4px;
+}
+
+.where-hunt-ranking {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.where-hunt-ranking .button {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+}
+
+.where-hunt-ranking .button.active {
+  color: #fff1d1;
+  border-color: #ffd957;
+  background: linear-gradient(#b648cc, #70238b);
+  box-shadow: 0 0 0 2px #ffd9577a;
+}
+
+.where-hunt-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.where-hunt-controls input {
+  width: min(460px, 60%);
+}
+
+.where-hunt-region {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: #d6bab4;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.where-hunt-region select {
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid #e39b57;
+  border-radius: 8px;
+  color: #fff1ce;
+  background: #281821;
+}
+
+.where-hunt-controls span {
+  color: #cda9a5;
+  font-size: 0.74rem;
+}
+
+.where-hunt-list {
+  display: grid;
+  gap: 7px;
+  max-height: min(55vh, 660px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.where-hunt-result {
+  display: grid;
+  grid-template-columns: 42px minmax(130px, 1.5fr) repeat(4, minmax(78px, 0.7fr)) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 1px solid #79444d;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #392132, #281924);
+}
+
+.where-hunt-result:first-child {
+  border-color: #e2b842;
+  background: linear-gradient(90deg, #59402e, #33202b 68%);
+}
+
+.where-hunt-rank {
+  color: #f6ca59;
+  font-family: 'Consolas', monospace;
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.where-hunt-name h3 {
+  margin: 0;
+  color: #fff1d2;
+  font-size: 0.95rem;
+}
+
+.where-hunt-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.where-hunt-name-copy {
+  min-width: 0;
+}
+
+.where-hunt-name-copy > span {
+  color: #bfa5a5;
+  font-size: 0.73rem;
+  text-transform: capitalize;
+}
+
+.where-hunt-sprite {
+  display: grid;
+  flex: 0 0 48px;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #825257;
+  border-radius: 7px;
+  background: radial-gradient(ellipse at 50% 72%, #58313d, #211622 72%);
+  overflow: hidden;
+}
+
+.where-hunt-sprite .pokemon-asset-frame {
+  border: 0;
+  background: transparent;
+}
+
+.where-hunt-stat {
+  display: grid;
+  gap: 3px;
+}
+
+.where-hunt-stat strong {
+  color: #fff0c9;
+  font-family: 'Consolas', monospace;
+  font-size: 0.9rem;
+}
+
+.where-hunt-result:first-child .where-hunt-xp strong {
+  color: #ffdb64;
+}
+
+.where-hunt-gold strong {
+  color: #f2c86b;
+}
+
+.where-hunt-confidence {
+  padding: 4px 6px;
+  border: 1px solid #a76b57;
+  border-radius: 20px;
+  color: #ffc97a;
+  font-size: 0.57rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.where-hunt-notice {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid #cb9654;
+  border-radius: 8px;
+  color: #ffe3a9;
+  background: #4b3328;
+}
+
+.where-hunt-disclaimer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #74434b;
+  color: #bfa5a5;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.where-hunt-empty {
+  padding: 24px;
+}
+
+@media (max-width: 1120px) {
+  .where-hunt-overview {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .where-hunt-page > .shared-page-header {
+    margin: -14px -14px 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .where-hunt-page > .shared-page-header {
+    flex-direction: row;
+    min-height: 150px;
+    padding: 10px;
+  }
+
+  .where-hunt-account {
+    max-width: 42%;
+  }
+
+  .where-hunt-active-layout {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 12px 8px;
+  }
+
+  .where-hunt-active-heading {
+    gap: 6px;
+  }
+
+  .where-hunt-active-copy h2 {
+    font-size: 1.35rem;
+  }
+
+  .where-hunt-active-copy {
+    padding: 8px;
+  }
+
+  .where-hunt-active-copy p {
+    font-size: 0.72rem;
+  }
+
+  .where-hunt-quality {
+    min-width: 84px;
+    padding: 6px;
+  }
+
+  .where-hunt-iv-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .where-hunt-iv-card {
+    height: 78px;
+    grid-template-rows: 27px auto 1fr;
+    gap: 2px;
+    padding: 4px 2px;
+  }
+
+  .where-hunt-iv-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .where-hunt-results-head,
+  .where-hunt-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .where-hunt-controls input {
+    width: 100%;
+  }
+
+  .where-hunt-region {
+    align-self: flex-end;
+  }
+
+  .where-hunt-result {
+    grid-template-columns: 32px minmax(72px, 1fr) repeat(2, minmax(66px, 0.8fr));
+  }
+
+  .where-hunt-kills,
+  .where-hunt-ttk,
+  .where-hunt-confidence {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .where-hunt-active-heading {
+    flex-wrap: wrap;
+  }
+
+  .where-hunt-active-copy {
+    flex-basis: 100%;
+    padding-top: 0;
+  }
+
+  .where-hunt-quality {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px 6px;
+  }
+
+  .where-hunt-quality strong {
+    font-size: 0.9rem;
+  }
+}

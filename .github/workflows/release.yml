@@ -1,0 +1,50 @@
+name: Windows Community Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build unsigned Windows installers
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: npm run check
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --no-default-features --features community-build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --no-default-features --features community-build
+      - run: npm run tauri:build:community
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -File |
+            Where-Object { $_.Extension -in '.msi', '.exe' }
+          if (-not $artifacts) { throw 'No MSI or EXE installer was produced.' }
+          $lines = foreach ($artifact in $artifacts) {
+            $hash = (Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($artifact.Name)"
+          }
+          $lines | Set-Content -LiteralPath 'SHA256SUMS.txt' -Encoding ascii
+      - name: Publish unsigned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $artifacts = @(Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -File |
+            Where-Object { $_.Extension -in '.msi', '.exe' } | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME @artifacts 'SHA256SUMS.txt' `
+            --title $env:GITHUB_REF_NAME `
+            --generate-notes
