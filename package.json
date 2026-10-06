@@ -22,6 +22,7 @@
     "check": "npm run lint && npm run typecheck && npm run test",
     "tauri": "tauri",
     "tauri:dev:community": "tauri dev -- --no-default-features --features community-build",
+    "tauri:dev:smoke": "tauri dev --config src-tauri/tauri.smoke.conf.json --features community-build",
     "tauri:dev:mobile": "tauri dev -- --no-default-features --features community-build,mobile-local-server",
     "tauri:build:community": "tauri build -- --no-default-features --features community-build"
   },

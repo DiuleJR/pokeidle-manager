@@ -23,6 +23,16 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
+### Smoke test seguro do aplicativo desktop
+
+No Windows, inicie o aplicativo comunitário sem reutilizar o perfil normal:
+
+```powershell
+npm run tauri:dev:smoke
+```
+
+Esse comando mescla `src-tauri/tauri.smoke.conf.json` à configuração Tauri padrão e usa o recurso `community-build`. O `identifier` isolado (`com.pokeidle.manager.smoke`) faz o Tauri usar `%APPDATA%\com.pokeidle.manager.smoke`, separado do diretório normal `%APPDATA%\com.pokeidle.manager`. Antes de executar, confirme que o diretório de smoke ainda não existe; o primeiro uso cria nele o banco e pode criar cache/perfil temporário do WebView ou navegador. Não copie bancos SQLite, perfis, cookies, configurações, contas, cache ou logs de outra instalação. Feche a janela normalmente ao terminar. Só remova o diretório de smoke depois de confirmar que o processo está encerrado e que o caminho corresponde exatamente ao identificador de smoke.
+
 Para gerar uma versão comunitária empacotada para Windows, use o comando explícito de compilação comunitária do repositório e confira o artefato localmente.
 
 ## Envio de contribuições
