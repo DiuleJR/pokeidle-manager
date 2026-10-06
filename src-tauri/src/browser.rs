@@ -4521,7 +4521,7 @@ mod tests {
             BrowserSessionMode::ReconnectExistingOwner,
             BrowserSessionMode::BackgroundBootstrap
         ));
-        let source = include_str!("browser.rs");
+        let source = include_str!("browser.rs").replace("\r\n", "\n");
         let reconnect_branch = source
             .find("BrowserSessionMode::ReconnectExistingOwner\n    ) {")
             .expect("the existing-owner path is present");
