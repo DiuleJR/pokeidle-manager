@@ -1474,8 +1474,13 @@ function Automations() {
   const [domainLoadError, setDomainLoadError] = useState<string | null>(null)
   const [domainRetry, setDomainRetry] = useState(0)
   useEffect(() => {
-    if (!isDesktop || settings.mockMode || !domainLoadKey) return
+    let current = true
     setDomainLoadError(null)
+    if (!isDesktop || settings.mockMode || !domainLoadKey) {
+      return () => {
+        current = false
+      }
+    }
     const accountIds = domainLoadKey.split('|').map((item) => item.split(':')[0])
     void Promise.all(
       accountIds.flatMap((accountId) => [
@@ -1484,9 +1489,12 @@ function Automations() {
         ensureAccountDomain(accountId, 'hunt_options'),
       ]),
     ).catch((error: unknown) => {
-      setDomainLoadError(String(error))
+      if (current) setDomainLoadError(String(error))
       console.warn('[automations] Falha ao carregar domínios.', error)
     })
+    return () => {
+      current = false
+    }
   }, [domainLoadKey, domainRetry, isDesktop, settings.mockMode])
   const domainsLoading = selectedRealAccounts.some((account) => {
     const revisions = account.domainRevisions
