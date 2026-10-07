@@ -121,8 +121,38 @@ export type AutomationKind =
   | 'autoBuyPotion'
   | 'autoBuyBall'
 
+/** Revisions are scoped to one account and let the UI cache heavy domains safely. */
+export interface AccountDomainRevisions {
+  depot: number
+  inventory: number
+  hunt_options: number
+}
+
+export type AccountDomain = keyof AccountDomainRevisions
+
+export interface AccountDomainData {
+  depot: DepotPokemon[]
+  inventory: InventoryItem[]
+  hunt_options: NonNullable<AccountView['huntOptions']>
+}
+
+/** Response returned by a revision-aware, on-demand account-domain request. */
+export interface AccountDomainResponse<D extends AccountDomain = AccountDomain> {
+  accountId: string
+  revision: number
+  changed: boolean
+  data?: AccountDomainData[D] | null
+}
+
+export interface AccountDomainCacheEntry<D extends AccountDomain = AccountDomain> {
+  revision: number
+  data: AccountDomainData[D]
+}
+
 export interface AccountView {
   id: string
+  /** Present for lightweight runtime summaries; omitted by legacy/mock fixtures. */
+  domainRevisions?: AccountDomainRevisions
   nick: string
   color: string
   status: AccountStatus
@@ -214,9 +244,11 @@ export interface AccountView {
   diamonds: number
   potions: number
   potionName?: string
+  activePotionId?: string
   potionUsageSource?: 'inventory_delta'
   balls: number
   ballName?: string
+  activeBallId?: string
   hunt: string | null
   wildPokemon: { name: string; level: number; hp: number; maxHp: number } | null
   kills: number

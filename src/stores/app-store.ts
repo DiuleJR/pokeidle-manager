@@ -1,10 +1,23 @@
 import { create } from 'zustand'
 import type { HuntReference } from '../hunts/calculator'
 import { mockAccounts } from '../mocks/accounts'
-import type { AccountView, AppSettings, AutomationKind, Page } from '../types'
+import type {
+  AccountDomain,
+  AccountDomainCacheEntry,
+  AccountDomainResponse,
+  AccountView,
+  AppSettings,
+  AutomationKind,
+  Page,
+} from '../types'
+
+export type AccountDomainCache = Partial<{
+  [D in AccountDomain]: AccountDomainCacheEntry<D>
+}>
 
 export interface RealAccountState {
   accounts: AccountView[]
+  domains?: Record<string, AccountDomainCache>
 }
 export interface MockAccountState {
   accounts: AccountView[]
@@ -39,7 +52,95 @@ export interface AppState {
   setPotionThreshold: (threshold: number) => void
   addMockAccounts: () => void
   setRealAccounts: (accounts: AccountView[]) => void
+  setRealAccountDomain: <D extends AccountDomain>(
+    domain: D,
+    response: AccountDomainResponse<D>,
+  ) => void
   advanceMock: () => void
+}
+
+const accountDomainKeys: AccountDomain[] = ['depot', 'inventory', 'hunt_options']
+const domainViewKey: Record<AccountDomain, 'depot' | 'inventory' | 'huntOptions'> = {
+  depot: 'depot',
+  inventory: 'inventory',
+  hunt_options: 'huntOptions',
+}
+
+const sameValue = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameValue(value, right[index]))
+    )
+  }
+  const leftRecord = left as Record<string, unknown>
+  const rightRecord = right as Record<string, unknown>
+  const keys = Object.keys(leftRecord)
+  return (
+    keys.length === Object.keys(rightRecord).length &&
+    keys.every((key) => sameValue(leftRecord[key], rightRecord[key]))
+  )
+}
+
+const sameLiveSummary = (left: AccountView, right: AccountView) => {
+  const heavyKeys = new Set(['depot', 'inventory', 'huntOptions', 'domainRevisions'])
+  const leftRecord = left as unknown as Record<string, unknown>
+  const rightRecord = right as unknown as Record<string, unknown>
+  const keys = Object.keys(leftRecord).filter((key) => !heavyKeys.has(key))
+  return (
+    keys.length === Object.keys(rightRecord).filter((key) => !heavyKeys.has(key)).length &&
+    keys.every((key) => sameValue(leftRecord[key], rightRecord[key]))
+  )
+}
+
+const reconcileLiveAccount = (incoming: AccountView, previous?: AccountView): AccountView => {
+  if (!previous || !incoming.domainRevisions || !previous.domainRevisions) return incoming
+  const sameRevision = (domain: AccountDomain) =>
+    incoming.domainRevisions?.[domain] === previous.domainRevisions?.[domain]
+  const reconciled = { ...incoming }
+  for (const domain of accountDomainKeys) {
+    if (sameRevision(domain)) {
+      // Keep large arrays stable across summary polls. A new domain revision
+      // deliberately leaves the empty list from accountFromLive in place.
+      if (domain === 'depot') reconciled.depot = previous.depot
+      else if (domain === 'inventory') reconciled.inventory = previous.inventory
+      else reconciled.huntOptions = previous.huntOptions
+    }
+  }
+  const domainsUnchanged = accountDomainKeys.every((domain) => {
+    const viewKey = domainViewKey[domain]
+    return previous[viewKey] === reconciled[viewKey]
+  })
+  const revisionsUnchanged = accountDomainKeys.every(sameRevision)
+  return sameLiveSummary(previous, reconciled) && domainsUnchanged && revisionsUnchanged
+    ? previous
+    : reconciled
+}
+
+const sameDomainCaches = (
+  previous: Record<string, AccountDomainCache> | undefined,
+  next: Record<string, AccountDomainCache>,
+) => {
+  const previousIds = Object.keys(previous ?? {})
+  const nextIds = Object.keys(next)
+  return (
+    previousIds.length === nextIds.length &&
+    nextIds.every((id) => {
+      const before = previous?.[id]
+      const after = next[id]
+      if (!before || !after) return false
+      const beforeDomains = Object.keys(before) as AccountDomain[]
+      const afterDomains = Object.keys(after) as AccountDomain[]
+      return (
+        beforeDomains.length === afterDomains.length &&
+        afterDomains.every((domain) => before[domain] === after[domain])
+      )
+    })
+  )
 }
 
 const initialSettings: AppSettings = {
@@ -64,7 +165,7 @@ export const selectVisibleAccounts = (state: AppState) =>
   state.settings.mockMode ? state.mock.accounts : state.real.accounts
 
 export const useAppStore = create<AppState>((set) => ({
-  real: { accounts: [] },
+  real: { accounts: [], domains: {} },
   mock: { accounts: [], tick: 0 },
   whereHuntReference: null,
   ui: {
@@ -115,7 +216,7 @@ export const useAppStore = create<AppState>((set) => ({
         })
       return state.settings.mockMode
         ? { mock: { ...state.mock, accounts: update(state.mock.accounts) } }
-        : { real: { accounts: update(state.real.accounts) } }
+        : { real: { ...state.real, accounts: update(state.real.accounts) } }
     }),
   setPotionThreshold: (potionThreshold) =>
     set((state) => {
@@ -125,21 +226,73 @@ export const useAppStore = create<AppState>((set) => ({
         )
       return state.settings.mockMode
         ? { mock: { ...state.mock, accounts: update(state.mock.accounts) } }
-        : { real: { accounts: update(state.real.accounts) } }
+        : { real: { ...state.real, accounts: update(state.real.accounts) } }
     }),
   addMockAccounts: () =>
     set((state) => ({
       mock: { accounts: cloneMockAccounts(), tick: 0 },
       ui: { ...state.ui, selectedIds: mockAccounts.map((account) => account.id) },
     })),
-  setRealAccounts: (accounts) =>
-    set((state) => ({
-      real: { accounts },
-      ui: {
-        ...state.ui,
-        selectedIds: state.ui.selectedIds.filter((id) => accounts.some((account) => account.id === id)),
-      },
-    })),
+  setRealAccounts: (incomingAccounts) =>
+    set((state) => {
+      const previousById = new Map(state.real.accounts.map((account) => [account.id, account]))
+      const accounts = incomingAccounts.map((account) =>
+        reconcileLiveAccount(account, previousById.get(account.id)),
+      )
+      const domains: Record<string, AccountDomainCache> = {}
+      for (const account of accounts) {
+        const revisions = account.domainRevisions
+        const previousDomains = state.real.domains?.[account.id]
+        if (!revisions || !previousDomains) continue
+        const retained: AccountDomainCache = {}
+        for (const domain of accountDomainKeys) {
+          const entry = previousDomains[domain]
+          if (entry?.revision === revisions[domain]) retained[domain] = entry as never
+        }
+        if (Object.keys(retained).length) domains[account.id] = retained
+      }
+      const selectedIds = state.ui.selectedIds.filter((id) =>
+        accounts.some((account) => account.id === id),
+      )
+      const accountsUnchanged =
+        accounts.length === state.real.accounts.length &&
+        accounts.every((account, index) => account === state.real.accounts[index])
+      const selectionUnchanged =
+        selectedIds.length === state.ui.selectedIds.length &&
+        selectedIds.every((id, index) => id === state.ui.selectedIds[index])
+      const domainsUnchanged = sameDomainCaches(state.real.domains, domains)
+      if (accountsUnchanged && selectionUnchanged && domainsUnchanged) return state
+      return {
+        real: { accounts, domains: domainsUnchanged ? state.real.domains : domains },
+        ui: {
+          ...state.ui,
+          selectedIds: selectionUnchanged ? state.ui.selectedIds : selectedIds,
+        },
+      }
+    }),
+  setRealAccountDomain: (domain, response) =>
+    set((state) => {
+      const accountIndex = state.real.accounts.findIndex(
+        (account) => account.id === response.accountId,
+      )
+      if (accountIndex < 0 || !response.changed || response.data == null) return {}
+      const account = state.real.accounts[accountIndex]
+      if (account.domainRevisions?.[domain] !== response.revision) return {}
+
+      const viewKey = domainViewKey[domain]
+      const updatedAccount = { ...account, [viewKey]: response.data } as AccountView
+      const accounts = [...state.real.accounts]
+      accounts[accountIndex] = updatedAccount
+      const currentCache = state.real.domains?.[account.id] ?? {}
+      const domains = {
+        ...state.real.domains,
+        [account.id]: {
+          ...currentCache,
+          [domain]: { revision: response.revision, data: response.data },
+        },
+      }
+      return { real: { accounts, domains } }
+    }),
   advanceMock: () =>
     set((state) => {
       if (!state.settings.mockMode) return {}
@@ -158,7 +311,8 @@ export const useAppStore = create<AppState>((set) => ({
               account.automations.autoPotion &&
               (account.hp / account.maxHp) * 100 <= account.potionThreshold &&
               account.potions > 0
-            const useBall = account.automations.ballContinuous && account.balls > 0 && tick % 3 === 0
+            const useBall =
+              account.automations.ballContinuous && account.balls > 0 && tick % 3 === 0
             return {
               ...account,
               onlineSeconds: account.onlineSeconds + 2,

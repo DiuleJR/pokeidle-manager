@@ -8,7 +8,8 @@ use crate::mobile::{
 };
 use crate::{
     accounts::AccountManager,
-    domain::{AccountSnapshot, ConnectionOwner, ConnectionStatus},
+    accounts::AccountMarketMetadata,
+    domain::{ConnectionOwner, ConnectionStatus},
     protocol::{BattleEvent, ClientFrame, Currency, ServerFrame},
 };
 use parking_lot::Mutex;
@@ -581,12 +582,9 @@ impl MarketRuntime {
                     .fold(0_u64, u64::saturating_add),
             )
         };
-        let account = reader_account_id.as_deref().and_then(|reader| {
-            self.accounts
-                .snapshots()
-                .into_iter()
-                .find(|snapshot| snapshot.account.id == reader)
-        });
+        let account = reader_account_id
+            .as_deref()
+            .and_then(|reader| self.accounts.market_metadata_for(reader));
         let reader_owner = account.as_ref().map(|snapshot| {
             match &snapshot.account.owner {
                 ConnectionOwner::Browser => "browser",
@@ -835,7 +833,7 @@ impl MarketRuntime {
         if let Some(id) = account_id.as_deref() {
             let eligible = self
                 .accounts
-                .snapshots()
+                .market_metadata()
                 .iter()
                 .any(|snapshot| snapshot.account.id == id && reader_eligible(snapshot));
             if !eligible {
@@ -989,7 +987,7 @@ impl MarketRuntime {
         let now = now_ms();
         self.last_poll_at.store(now, Ordering::Release);
         self.expire_pending_requests(now);
-        let snapshots = self.accounts.snapshots();
+        let snapshots = self.accounts.market_metadata();
         let reader = {
             let mut state = self.state.lock();
             let current = state.reader_account_id.as_deref().and_then(|id| {
@@ -1308,9 +1306,8 @@ impl MarketRuntime {
                     self.process_item_metadata(item_id, &listings);
                 }
                 // A single item response can contain many seller listings.
-                // Snapshot account state once per response, not once per row;
-                // snapshots clone each account's current runtime state.
-                let snapshots = self.accounts.snapshots();
+                // Read compact account metadata once per response, not once per row.
+                let snapshots = self.accounts.market_metadata();
                 for listing in listings {
                     self.consider_listing(
                         account_id,
@@ -1639,7 +1636,7 @@ impl MarketRuntime {
         response_item_id: Option<u64>,
         response_currency: Option<&MarketCurrency>,
         listing: WireListing,
-        snapshots: &[AccountSnapshot],
+        snapshots: &[AccountMarketMetadata],
     ) {
         let Some(item_id) = response_item_id else {
             return;
@@ -1665,7 +1662,7 @@ impl MarketRuntime {
         let offset = snapshots
             .iter()
             .find(|snapshot| snapshot.account.id == reader_account_id)
-            .and_then(|snapshot| snapshot.state.server_offset_ms)
+            .and_then(|snapshot| snapshot.server_offset_ms)
             .unwrap_or(0);
         let purchasable_at = listing.compravel_em.unwrap_or_else(now_ms);
         let due_local_at = server_to_local(purchasable_at, offset);
@@ -1829,7 +1826,7 @@ impl MarketRuntime {
 
     fn execute_candidate_keys(&self, keys: &[String], now: u64) {
         for key in keys {
-            let snapshots = self.accounts.snapshots();
+            let snapshots = self.accounts.market_metadata();
             let candidate = {
                 let mut state = self.state.lock();
                 state.expire_uncertain_outcomes(now);
@@ -2328,12 +2325,11 @@ impl MarketState {
     }
 }
 
-fn reader_eligible(snapshot: &AccountSnapshot) -> bool {
-    snapshot.account.status == ConnectionStatus::Online
-        && snapshot.state.command_transport_available
+fn reader_eligible(snapshot: &AccountMarketMetadata) -> bool {
+    snapshot.account.status == ConnectionStatus::Online && snapshot.command_transport_available
 }
 fn account_can_pay(
-    snapshots: &[AccountSnapshot],
+    snapshots: &[AccountMarketMetadata],
     account_id: &str,
     currency: &MarketCurrency,
     price: u64,
@@ -2355,10 +2351,10 @@ fn account_can_pay(
         .saturating_sub(price.saturating_mul(quantity))
         >= minimum_balance
 }
-fn account_balance(account: &AccountSnapshot, currency: &MarketCurrency) -> u64 {
+fn account_balance(account: &AccountMarketMetadata, currency: &MarketCurrency) -> u64 {
     match currency {
-        MarketCurrency::Gold => account.state.gold,
-        MarketCurrency::Orb => account.state.orbs,
+        MarketCurrency::Gold => Some(account.gold),
+        MarketCurrency::Orb => Some(account.orbs),
     }
     .unwrap_or(0)
 }

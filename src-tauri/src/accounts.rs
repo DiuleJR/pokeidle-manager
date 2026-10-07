@@ -3,10 +3,12 @@ use crate::mobile::{MobileAccountProjection, MobileSnapshot};
 use crate::{
     connection::BackgroundConnection,
     domain::{
-        AccountActivity, AccountMode, AccountRecord, AccountRuntimeState, AccountSnapshot,
-        AccountState, AutoBuyKind, AutoBuyRule, CaptureMode, ConnectionOwner, ConnectionStatus,
-        HuntSession, HuntTimerState, MAX_ACCOUNTS, PendingNavigationIntent, Pokemon,
-        PotionUsageSource, WildPokemon,
+        AccountActivity, AccountDataRevisions, AccountDepotPokemon, AccountHuntOption,
+        AccountHuntSpecies, AccountInventoryEntry, AccountLiveHunt, AccountLiveMetrics,
+        AccountLiveSnapshot, AccountLiveState, AccountMode, AccountRecord, AccountRuntimeState,
+        AccountSnapshot, AccountState, AutoBuyKind, AutoBuyRule, CaptureMode, ConnectionOwner,
+        ConnectionStatus, HuntSession, HuntTimerState, MAX_ACCOUNTS, PendingNavigationIntent,
+        Pokemon, PotionUsageSource, VersionedAccountRead, WildPokemon,
     },
     events::EventBus,
     inspector::{self, ProtocolDirection, ProtocolFrame},
@@ -18,15 +20,13 @@ use crate::{
 };
 use parking_lot::Mutex;
 use serde_json::{Map, Value};
-#[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
-use std::sync::atomic::AtomicU64;
 #[cfg(debug_assertions)]
 use std::sync::atomic::AtomicU64 as ValidationAtomicU64;
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 use thiserror::Error;
@@ -259,6 +259,8 @@ pub struct AccountRuntime {
     pub account: AccountRecord,
     state: AccountState,
     metrics: MetricsEngine,
+    data_revisions: AccountDataRevisions,
+    revision_clock: Arc<AtomicU64>,
     pub bus: EventBus,
     background: Option<BackgroundConnection>,
     browser_control: Option<mpsc::UnboundedSender<BrowserControl>>,
@@ -291,6 +293,52 @@ pub struct AccountRuntime {
     #[cfg(debug_assertions)]
     validation_command_counters: Arc<ValidationCommandCounters>,
 }
+
+/// Fields that the on-demand depot command actually exposes. Runtime-only
+/// Pokémon data such as HP/XP changes continuously during combat and must not
+/// invalidate the much larger depot response.
+#[derive(Debug, PartialEq)]
+struct DepotPokemonProjection {
+    id: u64,
+    name: String,
+    level: u32,
+    types: Vec<String>,
+    power: Option<u8>,
+    quality: Option<f64>,
+    note: Option<f64>,
+    iv_total: Option<u64>,
+    shiny: bool,
+    species_id: Option<u64>,
+    looktype: Option<u64>,
+    look_shiny: Option<u64>,
+}
+
+impl From<&Pokemon> for DepotPokemonProjection {
+    fn from(pokemon: &Pokemon) -> Self {
+        Self {
+            id: pokemon.id,
+            name: pokemon.name.clone(),
+            level: pokemon.level,
+            types: pokemon.types.clone(),
+            power: pokemon.potencia,
+            quality: pokemon.quality,
+            note: pokemon.nota,
+            iv_total: pokemon.iv_total,
+            shiny: pokemon.shiny,
+            species_id: pokemon.species_id,
+            looktype: pokemon.looktype,
+            look_shiny: pokemon.look_shiny,
+        }
+    }
+}
+
+fn same_depot_projection(left: &[Pokemon], right: &[Pokemon]) -> bool {
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            DepotPokemonProjection::from(left) == DepotPokemonProjection::from(right)
+        })
+}
+
 impl AccountRuntime {
     fn new(account: AccountRecord) -> Self {
         Self::with_validation_guard(account, Arc::new(AtomicBool::new(false)))
@@ -303,6 +351,8 @@ impl AccountRuntime {
             account,
             state: AccountState::default(),
             metrics: MetricsEngine::default(),
+            data_revisions: AccountDataRevisions::default(),
+            revision_clock: Arc::new(AtomicU64::new(0)),
             bus: EventBus::new(),
             background: None,
             browser_control: None,
@@ -327,6 +377,22 @@ impl AccountRuntime {
             #[cfg(debug_assertions)]
             validation_command_counters: Arc::new(ValidationCommandCounters::default()),
         }
+    }
+    fn next_data_revision(&self) -> u64 {
+        self.revision_clock
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |revision| {
+                Some(revision.saturating_add(1))
+            })
+            .unwrap_or(u64::MAX)
+            .saturating_add(1)
+    }
+    fn initialize_data_revisions(&mut self) {
+        let revision = self.next_data_revision();
+        self.data_revisions = AccountDataRevisions {
+            depot: revision,
+            inventory: revision,
+            hunt_options: revision,
+        };
     }
     fn reconcile_hunt_timer(&mut self, hunt_slug: &str, observed_at_ms: u64) {
         if self
@@ -470,6 +536,9 @@ impl AccountRuntime {
         }
         copy!(active_id);
         if let Some(items) = incoming.items {
+            if items != self.state.items {
+                self.data_revisions.inventory = self.next_data_revision();
+            }
             self.observe_potion_inventory_delta(&items, initialize_hunt);
             self.state.items = items;
             self.inventory_baseline_ready = true;
@@ -477,10 +546,13 @@ impl AccountRuntime {
             self.suppress_potion_delta_for_item = None;
         }
         if let Some(balls) = incoming.balls {
+            if balls != self.state.balls {
+                self.data_revisions.inventory = self.next_data_revision();
+            }
             self.state.balls = balls;
         }
         if let Some(pokemons) = incoming.pokemons {
-            self.state.pokemon = pokemons
+            let projected: Vec<Pokemon> = pokemons
                 .into_iter()
                 .map(|p| Pokemon {
                     id: p.id,
@@ -515,10 +587,16 @@ impl AccountRuntime {
                     patch_fields: Map::new(),
                 })
                 .collect();
+            if !same_depot_projection(&self.state.pokemon, &projected) {
+                self.data_revisions.depot = self.next_data_revision();
+            }
+            self.state.pokemon = projected;
             self.inventory_refresh_pending = false;
         }
         if let Some(patches) = incoming.pokemon_patches {
-            self.apply_pokemon_patches(patches);
+            if self.apply_pokemon_patches(patches) {
+                self.data_revisions.depot = self.next_data_revision();
+            }
         }
         if let Some(wild) = incoming.selvagem {
             self.state.wild = Some(WildPokemon {
@@ -573,7 +651,8 @@ impl AccountRuntime {
             .zip(self.state.server_offset_ms)
             .is_some_and(|(deadline, offset)| estimated_server_now(offset) < deadline);
     }
-    fn apply_pokemon_patches(&mut self, patches: Vec<RemotePokemonPatch>) {
+    fn apply_pokemon_patches(&mut self, patches: Vec<RemotePokemonPatch>) -> bool {
+        let mut changed = false;
         for patch in patches {
             let Some(pokemon) = self
                 .state
@@ -583,8 +662,11 @@ impl AccountRuntime {
             else {
                 continue;
             };
+            let previous = DepotPokemonProjection::from(&*pokemon);
             merge_pokemon_patch(pokemon, patch.fields);
+            changed |= DepotPokemonProjection::from(&*pokemon) != previous;
         }
+        changed
     }
     fn apply_automation(&mut self, automation: Value) {
         let Some(raw) = automation.as_object().cloned() else {
@@ -1023,11 +1105,15 @@ impl AccountRuntime {
         match &frame {
             ServerFrame::Welcome(welcome) => {
                 self.apply_state(welcome.estado.clone(), true);
-                self.state.hunts = welcome
+                let projected = welcome
                     .hunts
                     .iter()
                     .map(|hunt| Self::hunt_entry(hunt))
                     .collect();
+                if projected != self.state.hunts {
+                    self.data_revisions.hunt_options = self.next_data_revision();
+                    self.state.hunts = projected;
+                }
                 if let Some(nick) = &welcome.estado.nick {
                     self.account.nick = nick.clone();
                 }
@@ -1064,9 +1150,13 @@ impl AccountRuntime {
                     if matches!(event, crate::protocol::BattleEvent::Sale { .. }) {
                         if let Some(pending) = self.pending_pokemon_sale.take() {
                             let pokemon_id = pending.pokemon_id;
+                            let previous_len = self.state.pokemon.len();
                             self.state
                                 .pokemon
                                 .retain(|pokemon| pokemon.id != pokemon_id);
+                            if self.state.pokemon.len() != previous_len {
+                                self.data_revisions.depot = self.next_data_revision();
+                            }
                             if self.state.active_id == Some(pokemon_id) {
                                 self.state.active_id = None;
                             }
@@ -1184,10 +1274,134 @@ impl AccountRuntime {
             },
         }
     }
+
+    fn live_snapshot(&mut self) -> AccountLiveSnapshot {
+        // Preserve the legacy snapshot side effects: deferred automation work,
+        // transport availability and rolling metrics are all refreshed here.
+        self.process_due_actions();
+        self.state.command_transport_available = AccountCommandDispatcher::route(self).is_ok();
+        let metric_view = self
+            .metrics
+            .view(!self.state.no_centro && self.account.status == ConnectionStatus::Online);
+        let current_potion_id = self.state.active_potion_id.or_else(|| {
+            self.state.automation.potion_ids.iter().copied().find(|id| {
+                self.state
+                    .items
+                    .get(&id.to_string())
+                    .copied()
+                    .unwrap_or_default()
+                    > 0
+            })
+        });
+        let current_ball_id = self.state.active_ball_id.or_else(|| {
+            self.state.automation.ball_ids.iter().copied().find(|id| {
+                self.state
+                    .balls
+                    .get(&id.to_string())
+                    .copied()
+                    .unwrap_or_default()
+                    > 0
+            })
+        });
+        let active_pokemon = self
+            .state
+            .active_id
+            .and_then(|active_id| {
+                self.state
+                    .pokemon
+                    .iter()
+                    .find(|pokemon| pokemon.id == active_id)
+            })
+            .cloned();
+        let active_hunt = self.state.hunt_slug.as_ref().and_then(|slug| {
+            self.state
+                .hunts
+                .iter()
+                .find(|hunt| hunt.slug == *slug)
+                .map(|hunt| AccountLiveHunt {
+                    slug: hunt.slug.clone(),
+                    name: hunt.name.clone(),
+                    area: hunt.area.clone(),
+                    region: hunt.region.clone(),
+                })
+        });
+        let state = &self.state;
+        AccountLiveSnapshot {
+            account: self.account.clone(),
+            state: AccountLiveState {
+                level: state.level,
+                xp: state.xp,
+                gold: state.gold,
+                diamonds: state.diamonds,
+                orbs: state.orbs,
+                vip_until: state.vip_until,
+                vip_active: state.vip_active,
+                server_now: state.server_now,
+                vip_data_available: state.vip_data_available,
+                xp_bonus: state.xp_bonus.clone(),
+                guild_boost_until: state.guild_boost_until,
+                center_free_at: state.center_free_at,
+                combat_lock_until: state.combat_lock_until,
+                server_offset_ms: state.server_offset_ms,
+                combat_locked: state.combat_locked,
+                command_transport_available: state.command_transport_available,
+                hunt_slug: state.hunt_slug.clone(),
+                hunt_started_at_ms: state.hunt_started_at_ms,
+                pending_hunt_slug: state.pending_hunt_slug.clone(),
+                pending_navigation: state.pending_navigation.clone(),
+                navigation_error: state.navigation_error.clone(),
+                no_centro: state.no_centro,
+                active_id: state.active_id,
+                active_ball_id: state.active_ball_id,
+                active_potion_id: state.active_potion_id,
+                active_potion_source: state.active_potion_source.clone(),
+                active_pokemon,
+                active_hunt,
+                items_total_quantity: state
+                    .items
+                    .values()
+                    .fold(0_u64, |total, quantity| total.saturating_add(*quantity)),
+                wild: state.wild.clone(),
+                automation: state.automation.clone(),
+                automation_error: state.automation_error.clone(),
+                auto_buy_rules: state.auto_buy_rules.clone(),
+                capture_mode: state.capture_mode.clone(),
+                capture_queue_len: state.capture_queue_len,
+                capture_error: state.capture_error.clone(),
+                hunt_session: state.hunt_session.clone(),
+                activity: state.activity.clone(),
+                disconnect_reason: state.disconnect_reason.clone(),
+                reconnect_attempt: state.reconnect_attempt,
+                reconnect_started_at_ms: state.reconnect_started_at_ms,
+                reconnect_duration_ms: state.reconnect_duration_ms,
+                last_reconnected_at_ms: state.last_reconnected_at_ms,
+            },
+            metrics: AccountLiveMetrics {
+                xp_per_hour: metric_view.xp_per_hour,
+                gold_per_hour: metric_view.gold_per_hour,
+                kills: metric_view.kills,
+                captures: metric_view.captures,
+                potions_used: self.metrics.potions().clone(),
+                potions_per_hour: self.metrics.potions_per_hour(),
+                potion_usage_per_hour: self.metrics.potion_usage_per_hour(),
+                balls_used: self.metrics.balls().clone(),
+            },
+            current_potion_id,
+            current_potion_quantity: current_potion_id
+                .and_then(|id| state.items.get(&id.to_string()).copied())
+                .unwrap_or_default(),
+            current_ball_id,
+            current_ball_quantity: current_ball_id
+                .and_then(|id| state.balls.get(&id.to_string()).copied())
+                .unwrap_or_default(),
+            revisions: self.data_revisions,
+        }
+    }
 }
 #[derive(Clone)]
 pub struct AccountManager {
     runtimes: Arc<Mutex<HashMap<String, AccountRuntime>>>,
+    data_revision_clock: Arc<AtomicU64>,
     #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
     mobile_snapshot_revision: Arc<AtomicU64>,
     #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
@@ -1231,6 +1445,7 @@ impl Default for AccountManager {
         let (mobile_changes, _) = watch::channel(0);
         Self {
             runtimes: Arc::new(Mutex::new(HashMap::new())),
+            data_revision_clock: Arc::new(AtomicU64::new(0)),
             #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
             mobile_snapshot_revision: Arc::new(AtomicU64::new(0)),
             #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
@@ -1854,7 +2069,9 @@ impl AccountManager {
             runtime.validation_command_counters = Arc::clone(&self.validation_command_counters);
         }
         #[cfg(not(debug_assertions))]
-        let runtime = AccountRuntime::new(record);
+        let mut runtime = AccountRuntime::new(record);
+        runtime.revision_clock = Arc::clone(&self.data_revision_clock);
+        runtime.initialize_data_revisions();
         runtimes.insert(runtime.account.id.clone(), runtime);
         drop(runtimes);
         self.mark_mobile_changed();
@@ -2444,6 +2661,211 @@ impl AccountManager {
             .map(AccountRuntime::snapshot)
             .collect()
     }
+    pub fn live_snapshots(&self) -> Vec<AccountLiveSnapshot> {
+        self.runtimes
+            .lock()
+            .values_mut()
+            .map(AccountRuntime::live_snapshot)
+            .collect()
+    }
+    /// Small lifecycle-only metadata for automatic monitors. This must not
+    /// call `snapshot()`, which clones all depot and hunt data.
+    pub fn runtime_metadata(&self) -> Vec<(AccountRecord, Option<String>)> {
+        self.runtimes
+            .lock()
+            .values()
+            .map(|runtime| {
+                (
+                    runtime.account.clone(),
+                    runtime.state.disconnect_reason.clone(),
+                )
+            })
+            .collect()
+    }
+    pub fn runtime_metadata_for(
+        &self,
+        account_id: &str,
+    ) -> Option<(AccountRecord, Option<String>)> {
+        self.runtimes.lock().get(account_id).map(|runtime| {
+            (
+                runtime.account.clone(),
+                runtime.state.disconnect_reason.clone(),
+            )
+        })
+    }
+    pub fn market_metadata(&self) -> Vec<AccountMarketMetadata> {
+        self.runtimes
+            .lock()
+            .values_mut()
+            .map(|runtime| {
+                runtime.state.command_transport_available =
+                    AccountCommandDispatcher::route(runtime).is_ok();
+                AccountMarketMetadata {
+                    account: runtime.account.clone(),
+                    command_transport_available: runtime.state.command_transport_available,
+                    server_offset_ms: runtime.state.server_offset_ms,
+                    gold: runtime.state.gold.unwrap_or(0),
+                    orbs: runtime.state.orbs.unwrap_or(0),
+                }
+            })
+            .collect()
+    }
+    pub fn market_metadata_for(&self, account_id: &str) -> Option<AccountMarketMetadata> {
+        self.runtimes.lock().get_mut(account_id).map(|runtime| {
+            runtime.state.command_transport_available =
+                AccountCommandDispatcher::route(runtime).is_ok();
+            AccountMarketMetadata {
+                account: runtime.account.clone(),
+                command_transport_available: runtime.state.command_transport_available,
+                server_offset_ms: runtime.state.server_offset_ms,
+                gold: runtime.state.gold.unwrap_or(0),
+                orbs: runtime.state.orbs.unwrap_or(0),
+            }
+        })
+    }
+    pub fn automation_ids(&self, account_id: &str) -> Result<(Vec<u64>, Vec<u64>), AccountError> {
+        let runtimes = self.runtimes.lock();
+        let runtime = runtimes
+            .get(account_id)
+            .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
+        Ok((
+            runtime.state.automation.potion_ids.clone(),
+            runtime.state.automation.ball_ids.clone(),
+        ))
+    }
+    pub fn account_depot(
+        &self,
+        account_id: &str,
+        known_revision: Option<u64>,
+    ) -> Result<VersionedAccountRead<Vec<AccountDepotPokemon>>, AccountError> {
+        let runtimes = self.runtimes.lock();
+        let runtime = runtimes
+            .get(account_id)
+            .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
+        let revision = runtime.data_revisions.depot;
+        let changed = known_revision != Some(revision);
+        let data = changed.then(|| {
+            runtime
+                .state
+                .pokemon
+                .iter()
+                .map(|pokemon| AccountDepotPokemon {
+                    id: pokemon.id.to_string(),
+                    name: pokemon.name.clone(),
+                    level: pokemon.level,
+                    types: pokemon.types.clone(),
+                    locked: false,
+                    power: pokemon.potencia,
+                    quality: pokemon.quality,
+                    note: pokemon.nota,
+                    iv_total: pokemon.iv_total,
+                    shiny: pokemon.shiny,
+                    species_id: pokemon.species_id,
+                    looktype: pokemon.looktype,
+                    look_shiny: pokemon.look_shiny,
+                })
+                .collect()
+        });
+        Ok(VersionedAccountRead {
+            account_id: account_id.to_owned(),
+            revision,
+            changed,
+            data,
+        })
+    }
+    pub fn account_inventory(
+        &self,
+        account_id: &str,
+        known_revision: Option<u64>,
+    ) -> Result<VersionedAccountRead<Vec<AccountInventoryEntry>>, AccountError> {
+        let runtimes = self.runtimes.lock();
+        let runtime = runtimes
+            .get(account_id)
+            .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
+        let revision = runtime.data_revisions.inventory;
+        let changed = known_revision != Some(revision);
+        let data = changed.then(|| {
+            let mut entries =
+                Vec::with_capacity(runtime.state.items.len() + runtime.state.balls.len());
+            entries.extend(runtime.state.items.iter().map(|(id, quantity)| {
+                let name = account_inventory_item_name(id, false);
+                AccountInventoryEntry {
+                    id: id.clone(),
+                    asset_key: id.clone(),
+                    category: if matches!(
+                        id.as_str(),
+                        "200" | "201" | "202" | "203" | "204" | "70070"
+                    ) {
+                        "potions"
+                    } else {
+                        "other"
+                    }
+                    .into(),
+                    name,
+                    quantity: *quantity,
+                }
+            }));
+            entries.extend(runtime.state.balls.iter().map(|(id, quantity)| {
+                let entry_id = format!("ball-{id}");
+                AccountInventoryEntry {
+                    id: entry_id.clone(),
+                    asset_key: entry_id,
+                    name: account_inventory_item_name(id, true),
+                    quantity: *quantity,
+                    category: "balls".into(),
+                }
+            }));
+            entries
+        });
+        Ok(VersionedAccountRead {
+            account_id: account_id.to_owned(),
+            revision,
+            changed,
+            data,
+        })
+    }
+    pub fn account_hunt_options(
+        &self,
+        account_id: &str,
+        known_revision: Option<u64>,
+    ) -> Result<VersionedAccountRead<Vec<AccountHuntOption>>, AccountError> {
+        let runtimes = self.runtimes.lock();
+        let runtime = runtimes
+            .get(account_id)
+            .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
+        let revision = runtime.data_revisions.hunt_options;
+        let changed = known_revision != Some(revision);
+        let data = changed.then(|| {
+            runtime
+                .state
+                .hunts
+                .iter()
+                .map(|hunt| AccountHuntOption {
+                    slug: hunt.slug.clone(),
+                    name: hunt.name.clone(),
+                    area: hunt.area.clone(),
+                    level: hunt.level,
+                    total_spawns: hunt.total_spawns,
+                    region: hunt.region.clone(),
+                    looktype: hunt.looktype,
+                    species: hunt
+                        .species
+                        .iter()
+                        .map(|species| AccountHuntSpecies {
+                            species_id: species.species_id,
+                            weight: species.weight,
+                        })
+                        .collect(),
+                })
+                .collect()
+        });
+        Ok(VersionedAccountRead {
+            account_id: account_id.to_owned(),
+            revision,
+            changed,
+            data,
+        })
+    }
     /// Captures the owner and dispatcher-selected transport for every account
     /// under one account-map lock. Available only in debug builds and does not
     /// process actions, send commands, or expose credentials/session material.
@@ -2732,6 +3154,36 @@ fn inventory_item_category(item_id: u64, is_ball: bool) -> crate::mobile::Mobile
     }
 }
 
+/// Compact account fields consumed by the market worker. Periodic market
+/// checks should not clone the full depot/hunt snapshot.
+#[derive(Clone, Debug)]
+pub struct AccountMarketMetadata {
+    pub account: AccountRecord,
+    pub command_transport_available: bool,
+    pub server_offset_ms: Option<i64>,
+    pub gold: u64,
+    pub orbs: u64,
+}
+
+fn account_inventory_item_name(id: &str, is_ball: bool) -> String {
+    let parsed = id.parse::<u64>().ok();
+    match (is_ball, parsed) {
+        (true, Some(1)) => "Poké Ball".into(),
+        (true, Some(2)) => "Great Ball".into(),
+        (true, Some(3)) => "Super Ball".into(),
+        (true, Some(4)) => "Ultra Ball".into(),
+        (true, Some(5)) => "Beast Ball".into(),
+        (true, _) => format!("Ball #{id}"),
+        (false, Some(200)) => "Small Potion".into(),
+        (false, Some(201)) => "Great Potion".into(),
+        (false, Some(202)) => "Ultra Potion".into(),
+        (false, Some(203)) => "Hyper Potion".into(),
+        (false, Some(204)) => "Ultimate Potion".into(),
+        (false, Some(70_070)) => "Golden Potion".into(),
+        (false, _) => format!("Item #{id}"),
+    }
+}
+
 #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
 fn inventory_item_name(item_id: u64) -> String {
     match item_id {
@@ -2902,6 +3354,203 @@ mod tests {
         assert!(ids.contains(&"a".to_owned()));
         assert!(ids.contains(&"c".to_owned()));
         assert!(ids.contains(&"d".to_owned()));
+    }
+
+    #[test]
+    fn live_snapshot_is_allowlisted_and_includes_one_active_pokemon() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Trainer A".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"level":50,"activeId":2,"items":{"200":3},"balls":{"4":8},"automation":{"potionIds":[200],"ballIds":[4]},"pokemons":[{"id":1,"nome":"Pupitar","level":40,"hp":10,"maxHp":20},{"id":2,"nome":"Tyranitar","level":50,"hp":20,"maxHp":30,"quality":1.7}],"huntSlug":"ancient_pupitar"},"hunts":[{"slug":"ancient_pupitar","nome":"Ancient Pupitar","area":"kanto","especies":[{"pokeId":248,"pontos":1}]}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let live = manager.live_snapshots().remove(0);
+        assert_eq!(
+            live.state.active_pokemon.as_ref().unwrap().name,
+            "Tyranitar"
+        );
+        assert_eq!(live.current_potion_id, Some(200));
+        assert_eq!(live.current_potion_quantity, 3);
+        assert_eq!(live.current_ball_id, Some(4));
+        assert_eq!(live.current_ball_quantity, 8);
+        assert_eq!(
+            live.state.active_hunt.as_ref().unwrap().name,
+            "Ancient Pupitar"
+        );
+
+        let json = serde_json::to_value(live).unwrap();
+        let state = json.get("state").unwrap();
+        for forbidden in ["pokemon", "hunts", "items", "balls"] {
+            assert!(
+                state.get(forbidden).is_none(),
+                "unexpected field: {forbidden}"
+            );
+        }
+        assert!(state.get("active_pokemon").is_some());
+        assert!(state.get("active_hunt").is_some());
+    }
+
+    #[test]
+    fn on_demand_collection_reads_return_data_only_for_a_new_revision() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Trainer A".into(), "#fff".into()))
+            .unwrap();
+        let frame = || {
+            ServerFrame::parse(
+                r#"{"t":"welcome","estado":{"activeId":1,"items":{"200":3},"balls":{"4":8},"pokemons":[{"id":1,"nome":"Pupitar","level":40,"hp":10,"maxHp":20}]},"hunts":[{"slug":"ancient_pupitar","nome":"Ancient Pupitar","area":"kanto","especies":[{"pokeId":248,"pontos":1}]}]}"#,
+            )
+            .unwrap()
+        };
+        manager.ingest("a", frame()).unwrap();
+
+        let depot = manager.account_depot("a", None).unwrap();
+        let inventory = manager.account_inventory("a", None).unwrap();
+        let hunts = manager.account_hunt_options("a", None).unwrap();
+        assert!(depot.changed && depot.data.as_ref().is_some_and(|data| data.len() == 1));
+        assert!(inventory.changed && inventory.data.as_ref().is_some_and(|data| data.len() == 2));
+        assert!(hunts.changed && hunts.data.as_ref().is_some_and(|data| data.len() == 1));
+        let depot_json = serde_json::to_value(&depot).unwrap();
+        assert_eq!(depot_json["accountId"], "a");
+        assert!(depot_json["data"].is_array());
+        assert_eq!(depot_json["data"][0]["id"], "1");
+        assert_eq!(depot_json["data"][0]["locked"], false);
+        let inventory_json = serde_json::to_value(&inventory).unwrap();
+        assert_eq!(inventory_json["data"][0]["assetKey"], "200");
+        let hunts_json = serde_json::to_value(&hunts).unwrap();
+        assert_eq!(
+            hunts_json["data"][0]["totalSpawns"],
+            serde_json::Value::Null
+        );
+        assert_eq!(hunts_json["data"][0]["species"][0]["speciesId"], 248);
+
+        let depot_same = manager.account_depot("a", Some(depot.revision)).unwrap();
+        let inventory_same = manager
+            .account_inventory("a", Some(inventory.revision))
+            .unwrap();
+        let hunts_same = manager
+            .account_hunt_options("a", Some(hunts.revision))
+            .unwrap();
+        assert!(!depot_same.changed && depot_same.data.is_none());
+        assert!(!inventory_same.changed && inventory_same.data.is_none());
+        assert!(!hunts_same.changed && hunts_same.data.is_none());
+
+        manager.ingest("a", frame()).unwrap();
+        assert_eq!(
+            manager
+                .account_depot("a", Some(depot.revision))
+                .unwrap()
+                .revision,
+            depot.revision
+        );
+        assert_eq!(
+            manager
+                .account_inventory("a", Some(inventory.revision))
+                .unwrap()
+                .revision,
+            inventory.revision
+        );
+        assert_eq!(
+            manager
+                .account_hunt_options("a", Some(hunts.revision))
+                .unwrap()
+                .revision,
+            hunts.revision
+        );
+
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"estado","estado":{"items":{"200":4},"pkMud":[{"id":1,"hp":9}]}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let depot_changed = manager.account_depot("a", Some(depot.revision)).unwrap();
+        let inventory_changed = manager
+            .account_inventory("a", Some(inventory.revision))
+            .unwrap();
+        assert!(!depot_changed.changed && depot_changed.data.is_none());
+        assert!(inventory_changed.changed && inventory_changed.data.is_some());
+        assert_eq!(depot_changed.revision, depot.revision);
+        assert!(inventory_changed.revision > inventory.revision);
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"estado","estado":{"items":{"200":4},"pkMud":[{"id":1,"hp":9}]}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            manager.account_depot("a", None).unwrap().revision,
+            depot.revision
+        );
+        assert!(manager.account_inventory("a", None).unwrap().revision > inventory.revision);
+
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(r#"{"t":"estado","estado":{"pkMud":[{"id":1,"level":41}]}}"#)
+                    .unwrap(),
+            )
+            .unwrap();
+        let visible_depot_change = manager.account_depot("a", Some(depot.revision)).unwrap();
+        assert!(visible_depot_change.changed && visible_depot_change.data.is_some());
+        assert!(visible_depot_change.revision > depot.revision);
+    }
+
+    #[test]
+    fn on_demand_collection_reads_reject_unknown_accounts() {
+        let manager = AccountManager::default();
+        assert!(manager.account_depot("missing", None).is_err());
+        assert!(manager.account_inventory("missing", None).is_err());
+        assert!(manager.account_hunt_options("missing", None).is_err());
+    }
+
+    #[test]
+    fn collection_revisions_do_not_repeat_after_account_recreation() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Trainer A".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"pokemons":[{"id":1,"nome":"Pupitar","level":40,"hp":10,"maxHp":20}]}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let previous = manager.account_depot("a", None).unwrap().revision;
+        manager.remove("a").unwrap();
+        manager
+            .add(new_record("a".into(), "Trainer A".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"pokemons":[{"id":2,"nome":"Tyranitar","level":50,"hp":20,"maxHp":30}]}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let replacement = manager.account_depot("a", Some(previous)).unwrap();
+        assert!(replacement.changed);
+        assert!(replacement.revision > previous);
+        assert_eq!(replacement.data.as_ref().unwrap()[0].id, "2");
     }
 
     #[test]

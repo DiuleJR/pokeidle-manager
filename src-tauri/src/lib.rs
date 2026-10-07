@@ -23,8 +23,9 @@ mod protocol;
 use accounts::AccountManager;
 use connection::ConnectionManager;
 use domain::{
+    AccountDepotPokemon, AccountHuntOption, AccountInventoryEntry, AccountLiveSnapshot,
     AccountMode, AccountRecord, AccountRuntimeState, AccountSnapshot, CaptureMode, ConnectionOwner,
-    ConnectionStatus, HuntTimerState, MAX_ACCOUNTS,
+    ConnectionStatus, HuntTimerState, MAX_ACCOUNTS, VersionedAccountRead,
 };
 use parking_lot::Mutex;
 use rusqlite::{Connection, OptionalExtension};
@@ -587,10 +588,8 @@ fn launch_session_with_executable(
         }
         if mode_uses_startup_bootstrap_gate(mode) {
             let runtime = accounts
-                .snapshots()
-                .into_iter()
-                .find(|snapshot| snapshot.account.id == account_id)
-                .map(|snapshot| snapshot.account.runtime);
+                .runtime_metadata_for(&account_id)
+                .map(|(account, _)| account.runtime);
             if matches!(
                 runtime,
                 Some(AccountRuntimeState::BrowserBootstrap | AccountRuntimeState::WaitingForLogin)
@@ -638,9 +637,9 @@ fn launch_session_with_executable(
 /// Called by the mounted frontend after its first paint. Keeping browser work
 /// out of Tauri's synchronous setup path prevents a headless Brave startup
 /// from competing with the first WebView/React render.
-fn schedule_restored_bootstraps(core: &AppCore) -> Vec<AccountSnapshot> {
+fn schedule_restored_bootstraps(core: &AppCore) -> Vec<AccountLiveSnapshot> {
     if core.bootstrap_scheduled.swap(true, Ordering::AcqRel) {
-        return core.accounts.snapshots();
+        return core.accounts.live_snapshots();
     }
     start_session_recovery_monitor(core.clone());
     startup_mark("frontend first paint; account bootstraps scheduling");
@@ -657,7 +656,7 @@ fn schedule_restored_bootstraps(core: &AppCore) -> Vec<AccountSnapshot> {
     }
     startup_mark("all account bootstraps scheduled after first paint");
     core.market.start();
-    core.accounts.snapshots()
+    core.accounts.live_snapshots()
 }
 
 /// Reuses the account's persistent Brave profile after an authenticated socket
@@ -674,15 +673,15 @@ fn start_session_recovery_monitor(core: AppCore) {
                 _ = cancellation.cancelled() => break,
                 _ = interval.tick() => {}
             }
-            for snapshot in core.accounts.snapshots() {
-                let account_id = snapshot.account.id;
-                if snapshot.account.status == ConnectionStatus::Online {
+            for (account, _) in core.accounts.runtime_metadata() {
+                let account_id = account.id;
+                if account.status == ConnectionStatus::Online {
                     // A confirmed online session begins a new recovery cycle.
                     silent_login_attempted.remove(&account_id);
                     continue;
                 }
                 if should_attempt_silent_login_recovery(
-                    &snapshot.account.runtime,
+                    &account.runtime,
                     silent_login_attempted.contains(&account_id),
                 ) {
                     if core
@@ -704,7 +703,7 @@ fn start_session_recovery_monitor(core: AppCore) {
                     }
                     continue;
                 }
-                if snapshot.account.runtime != AccountRuntimeState::RenewingSession {
+                if account.runtime != AccountRuntimeState::RenewingSession {
                     continue;
                 }
                 if core
@@ -1162,6 +1161,11 @@ fn dashboard(state: tauri::State<'_, AppCore>) -> Result<Vec<AccountSnapshot>, S
     persist_pending_capture_mode_changes(state.inner());
     Ok(state.accounts.snapshots())
 }
+#[tauri::command]
+fn dashboard_live(state: tauri::State<'_, AppCore>) -> Result<Vec<AccountLiveSnapshot>, String> {
+    persist_pending_capture_mode_changes(state.inner());
+    Ok(state.accounts.live_snapshots())
+}
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct IntegrationSnapshot {
@@ -1175,6 +1179,55 @@ fn integration_snapshot(state: tauri::State<'_, AppCore>) -> Result<IntegrationS
         diagnostic: state.diagnostic.lock().clone(),
         accounts: state.accounts.snapshots(),
     })
+}
+#[tauri::command]
+fn integration_live_snapshot(
+    state: tauri::State<'_, AppCore>,
+) -> Result<IntegrationLiveSnapshot, String> {
+    persist_pending_capture_mode_changes(state.inner());
+    Ok(IntegrationLiveSnapshot {
+        diagnostic: state.diagnostic.lock().clone(),
+        accounts: state.accounts.live_snapshots(),
+    })
+}
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IntegrationLiveSnapshot {
+    diagnostic: browser::IntegrationDiagnostic,
+    accounts: Vec<AccountLiveSnapshot>,
+}
+#[tauri::command]
+fn account_depot(
+    account_id: String,
+    known_revision: Option<u64>,
+    state: tauri::State<'_, AppCore>,
+) -> Result<VersionedAccountRead<Vec<AccountDepotPokemon>>, String> {
+    state
+        .accounts
+        .account_depot(&account_id, known_revision)
+        .map_err(|error| error.to_string())
+}
+#[tauri::command]
+fn account_inventory(
+    account_id: String,
+    known_revision: Option<u64>,
+    state: tauri::State<'_, AppCore>,
+) -> Result<VersionedAccountRead<Vec<AccountInventoryEntry>>, String> {
+    state
+        .accounts
+        .account_inventory(&account_id, known_revision)
+        .map_err(|error| error.to_string())
+}
+#[tauri::command]
+fn account_hunt_options(
+    account_id: String,
+    known_revision: Option<u64>,
+    state: tauri::State<'_, AppCore>,
+) -> Result<VersionedAccountRead<Vec<AccountHuntOption>>, String> {
+    state
+        .accounts
+        .account_hunt_options(&account_id, known_revision)
+        .map_err(|error| error.to_string())
 }
 #[tauri::command]
 async fn market_snapshot(
@@ -1232,6 +1285,13 @@ async fn delete_market_sniper_rule(
 fn schedule_restored_account_bootstraps(
     state: tauri::State<'_, AppCore>,
 ) -> Result<Vec<AccountSnapshot>, String> {
+    let _ = schedule_restored_bootstraps(state.inner());
+    Ok(state.accounts.snapshots())
+}
+#[tauri::command]
+fn schedule_restored_account_live_bootstraps(
+    state: tauri::State<'_, AppCore>,
+) -> Result<Vec<AccountLiveSnapshot>, String> {
     Ok(schedule_restored_bootstraps(state.inner()))
 }
 #[tauri::command]
@@ -1283,16 +1343,14 @@ fn set_native_automation_ids(
         .accounts
         .set_automation_ids(&account_id, kind, ids.clone())
         .map_err(|error| error.to_string())?;
-    let snapshot = state
+    let (potion_ids, ball_ids) = state
         .accounts
-        .snapshots()
-        .into_iter()
-        .find(|snapshot| snapshot.account.id == account_id)
-        .ok_or_else(|| "Conta não encontrada".to_string())?;
+        .automation_ids(&account_id)
+        .map_err(|error| error.to_string())?;
     let mut preferences = load_automation_preferences(&state.database.lock(), &account_id)
         .map_err(|error| error.to_string())?;
-    preferences.potion_ids = snapshot.state.automation.potion_ids;
-    preferences.ball_ids = snapshot.state.automation.ball_ids;
+    preferences.potion_ids = potion_ids;
+    preferences.ball_ids = ball_ids;
     match field.as_str() {
         "potionIds" => preferences.potion_ids = ids,
         "ballIds" => preferences.ball_ids = ids,
@@ -1496,23 +1554,17 @@ async fn reconnect_browser_control(
     // failure reason to the caller/UI.
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
-        let snapshot = state
+        let (account, disconnect_reason) = state
             .accounts
-            .snapshots()
-            .into_iter()
-            .find(|snapshot| snapshot.account.id == account_id)
+            .runtime_metadata_for(&account_id)
             .ok_or_else(|| "A conta não está mais disponível para reconexão.".to_owned())?;
 
-        if snapshot.account.owner == ConnectionOwner::Browser
-            && snapshot.account.status == ConnectionStatus::Online
-        {
+        if account.owner == ConnectionOwner::Browser && account.status == ConnectionStatus::Online {
             return Ok(());
         }
 
-        if snapshot.account.status == ConnectionStatus::Error {
-            let reason = snapshot
-                .state
-                .disconnect_reason
+        if account.status == ConnectionStatus::Error {
+            let reason = disconnect_reason
                 .filter(|reason| !reason.trim().is_empty())
                 .unwrap_or_else(|| "O navegador não confirmou a reconexão.".into());
             return Err(format!("Reconexão falhou: {reason}"));
@@ -1813,14 +1865,20 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             dashboard,
+            dashboard_live,
             app_core_status,
             integration_snapshot,
+            integration_live_snapshot,
+            account_depot,
+            account_inventory,
+            account_hunt_options,
             market_snapshot,
             market_diagnostics,
             set_market_reader,
             save_market_sniper_rule,
             delete_market_sniper_rule,
             schedule_restored_account_bootstraps,
+            schedule_restored_account_live_bootstraps,
             set_auto_sale,
             set_native_automation,
             set_native_automation_ids,
