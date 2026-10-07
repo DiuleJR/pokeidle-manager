@@ -1578,6 +1578,35 @@ describe('Pokeidle Manager UI', () => {
     expect(starts).toBe(2)
     expect([...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === 'Abrindo navegador…')?.disabled).toBe(true)
   })
+  it('unlocks add-account when browser control fails before the lifecycle becomes terminal', async () => {
+    vi.useFakeTimers()
+    let currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'closed', state: 'Aguardando', message: '', accountId: null, welcomeReceived: false } } as unknown as IntegrationSnapshot
+    setupDesktop((command) => command === 'start_real_account'
+      ? Promise.resolve({ status: 'started', accountId: 'stalled-browser-account' })
+      : Promise.resolve(null), () => currentSnapshot)
+
+    const host = render()
+    await flushDesktopEffects()
+    const add = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta' || button.textContent === 'Abrindo navegador…')!
+    await act(async () => { add().click(); await Promise.resolve() })
+    expect(add().disabled).toBe(true)
+
+    currentSnapshot = {
+      accounts: [],
+      diagnostic: {
+        lifecycle: 'loadingGame',
+        state: 'Controle do navegador indisponível',
+        message: 'O controle da aba foi encerrado antes de iniciar a conta.',
+        accountId: 'stalled-browser-account',
+        welcomeReceived: false,
+      },
+    } as unknown as IntegrationSnapshot
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+
+    expect(add().disabled).toBe(false)
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('O controle da aba foi encerrado')
+    expect([...host.querySelectorAll<HTMLButtonElement>('[role="alert"] button')].some((button) => button.textContent === 'Tentar novamente')).toBe(true)
+  })
   it('does not unlock on another account’s waiting-login runtime, but accepts matching ready-to-login diagnostics', async () => {
     vi.useFakeTimers()
     let starts = 0

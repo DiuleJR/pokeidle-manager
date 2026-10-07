@@ -3692,7 +3692,11 @@ export default function App() {
       return
     }
 
-    if (diagnosticMatches && (diagnostic.lifecycle === 'error' || diagnostic.lifecycle === 'closed')) {
+    if (diagnosticMatches && (
+      diagnostic.lifecycle === 'error'
+      || diagnostic.lifecycle === 'closed'
+      || diagnostic.state === 'Controle do navegador indisponível'
+    )) {
       fail(diagnostic.message.trim()
         ? `Não foi possível concluir a conexão: ${diagnostic.message}`
         : 'Não foi possível concluir a conexão da conta. Tente novamente.')
