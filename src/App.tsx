@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { CustomTitleBar } from './components/CustomTitleBar'
 import { Badge, Button, Card, EmptyState, Switch } from './components/primitives'
+import { CommunityProjectCard } from './components/CommunityProjectCard'
+import { COMMUNITY } from './config/community'
 import { ItemAssetResolver, type GameItemCatalog, useGameItemCatalog } from './inventory/assets'
 import { ItemAsset, PokemonAsset } from './inventory/asset-components'
 import { ensureAccountDomain } from './account-domains'
@@ -209,12 +211,6 @@ const format = new Intl.NumberFormat('pt-BR')
 const MARKET_SNAPSHOT_REFRESH_MS = 10_000
 const MARKET_HISTORY_ROW_HEIGHT = 60
 const startupDebug = import.meta.env.DEV && import.meta.env.MODE !== 'test'
-const communityInfo = {
-  version: '0.1.0',
-  githubUrl: null as string | null,
-  discordUrl: null as string | null,
-  pixEnabled: false,
-}
 const statusFor = (status: AccountView['status']) =>
   ({
     online: 'Online',
@@ -3466,35 +3462,7 @@ function Settings() {
         </div>
         <p className="startup-concurrency-note">Aplicado na próxima inicialização.</p>
       </Card>
-      <Card className="community-project-card">
-        <div className="community-project-heading">
-          <div>
-            <p className="eyebrow">PROJETO OPEN SOURCE</p>
-            <h2>Pokeidle Manager</h2>
-            <p className="muted">Versão {communityInfo.version}</p>
-          </div>
-          <Badge tone="positive">Community Build</Badge>
-        </div>
-        <div className="community-project-status" aria-label="Sobre o projeto">
-          <span>✓ Gratuito</span>
-          <span>✓ Código aberto · GPL-3.0-only</span>
-          <span>✓ Sem ativação comercial</span>
-        </div>
-        <p className="muted">
-          O repositório e os canais de suporte serão adicionados quando estiverem confirmados.
-        </p>
-        <div className="community-project-actions">
-          <Button disabled={!communityInfo.githubUrl} title="Endereço ainda não configurado">
-            Ver no GitHub
-          </Button>
-          <Button disabled={!communityInfo.discordUrl} title="Endereço ainda não configurado">
-            Discord — configurar URL
-          </Button>
-          <Button disabled={!communityInfo.pixEnabled} title="Apoio via PIX ainda não configurado">
-            Apoie o projeto · PIX em breve
-          </Button>
-        </div>
-      </Card>
+      <CommunityProjectCard />
       <Card>
         <Switch
           label="Minimizar para bandeja"
@@ -3525,7 +3493,7 @@ function Settings() {
           Abrir pasta de logs
         </Button>
         <p className="muted">
-          Pokeidle Manager {communityInfo.version} · Iniciar com Windows permanece preparado para uma próxima versão.
+          Pokeidle Manager {COMMUNITY.version} · Iniciar com Windows permanece preparado para uma próxima versão.
         </p>
       </Card>
     </main>
