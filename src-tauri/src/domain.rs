@@ -204,7 +204,7 @@ pub struct AutomationState {
     pub auto_return_hunt: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HuntCatalogEntry {
     pub slug: String,
     pub name: String,
@@ -217,13 +217,13 @@ pub struct HuntCatalogEntry {
     pub species: Vec<HuntSpeciesEntry>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct HuntSpeciesEntry {
     pub species_id: Option<u64>,
     pub weight: Option<f64>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PokemonIvs {
     pub hp: Option<u64>,
@@ -244,7 +244,7 @@ pub struct XpBonusState {
     pub twitch_pct: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Pokemon {
     pub id: u64,
     #[serde(rename = "nome")]
@@ -325,4 +325,150 @@ pub struct AccountSnapshot {
     pub account: AccountRecord,
     pub state: AccountState,
     pub metrics: AccountMetrics,
+}
+
+/// Compact account view used by the frequently refreshed desktop UI.
+/// Large collections (depot, inventory maps and hunt catalog) are deliberately
+/// loaded through their versioned, on-demand commands instead.
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountLiveSnapshot {
+    pub account: AccountRecord,
+    pub state: AccountLiveState,
+    pub metrics: AccountLiveMetrics,
+    pub current_potion_id: Option<u64>,
+    pub current_potion_quantity: u64,
+    pub current_ball_id: Option<u64>,
+    pub current_ball_quantity: u64,
+    pub revisions: AccountDataRevisions,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountLiveState {
+    pub level: Option<u32>,
+    pub xp: Option<u64>,
+    pub gold: Option<u64>,
+    pub diamonds: Option<u64>,
+    pub orbs: Option<u64>,
+    pub vip_until: Option<u64>,
+    pub vip_active: Option<bool>,
+    pub server_now: Option<u64>,
+    pub vip_data_available: bool,
+    pub xp_bonus: XpBonusState,
+    pub guild_boost_until: Option<u64>,
+    pub center_free_at: Option<u64>,
+    pub combat_lock_until: Option<u64>,
+    pub server_offset_ms: Option<i64>,
+    pub combat_locked: bool,
+    pub command_transport_available: bool,
+    pub hunt_slug: Option<String>,
+    pub hunt_started_at_ms: Option<u64>,
+    pub pending_hunt_slug: Option<String>,
+    pub pending_navigation: Option<PendingNavigationIntent>,
+    pub navigation_error: Option<String>,
+    pub no_centro: bool,
+    pub active_id: Option<u64>,
+    pub active_ball_id: Option<u64>,
+    pub active_potion_id: Option<u64>,
+    pub active_potion_source: Option<PotionUsageSource>,
+    pub active_pokemon: Option<Pokemon>,
+    pub active_hunt: Option<AccountLiveHunt>,
+    pub items_total_quantity: u64,
+    pub wild: Option<WildPokemon>,
+    pub automation: AutomationState,
+    pub automation_error: Option<String>,
+    pub auto_buy_rules: Vec<AutoBuyRule>,
+    pub capture_mode: CaptureMode,
+    pub capture_queue_len: usize,
+    pub capture_error: Option<String>,
+    pub hunt_session: Option<HuntSession>,
+    pub activity: AccountActivity,
+    pub disconnect_reason: Option<String>,
+    pub reconnect_attempt: u32,
+    pub reconnect_started_at_ms: Option<u64>,
+    pub reconnect_duration_ms: Option<u64>,
+    pub last_reconnected_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountLiveHunt {
+    pub slug: String,
+    pub name: String,
+    pub area: Option<String>,
+    pub region: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AccountLiveMetrics {
+    pub xp_per_hour: u64,
+    pub gold_per_hour: u64,
+    pub kills: u64,
+    pub captures: u64,
+    pub potions_used: BTreeMap<String, u64>,
+    pub potions_per_hour: Option<u64>,
+    pub potion_usage_per_hour: BTreeMap<String, u64>,
+    pub balls_used: BTreeMap<String, u64>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct AccountDataRevisions {
+    pub depot: u64,
+    pub inventory: u64,
+    pub hunt_options: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountDepotPokemon {
+    pub id: String,
+    pub name: String,
+    pub level: u32,
+    pub types: Vec<String>,
+    pub locked: bool,
+    pub power: Option<u8>,
+    pub quality: Option<f64>,
+    pub note: Option<f64>,
+    pub iv_total: Option<u64>,
+    pub shiny: bool,
+    pub species_id: Option<u64>,
+    pub looktype: Option<u64>,
+    pub look_shiny: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountInventoryEntry {
+    pub id: String,
+    pub asset_key: String,
+    pub name: String,
+    pub quantity: u64,
+    pub category: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountHuntOption {
+    pub slug: String,
+    pub name: String,
+    pub area: Option<String>,
+    pub level: Option<u32>,
+    pub total_spawns: Option<u32>,
+    pub region: Option<String>,
+    pub looktype: Option<u64>,
+    pub species: Vec<AccountHuntSpecies>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountHuntSpecies {
+    pub species_id: Option<u64>,
+    pub weight: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionedAccountRead<T> {
+    pub account_id: String,
+    pub revision: u64,
+    pub changed: bool,
+    pub data: Option<T>,
 }

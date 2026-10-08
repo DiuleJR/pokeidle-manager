@@ -9,7 +9,7 @@ import { mockAccounts } from './mocks/accounts'
 import { useAppStore } from './stores/app-store'
 import { useMarketStore } from './stores/market-store'
 import type { MarketSnapshot } from './types'
-import type { IntegrationSnapshot } from './real-account'
+import type { IntegrationLiveSnapshot, IntegrationSnapshot } from './real-account'
 
 const { invokeMock, listenMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -38,10 +38,11 @@ function setupDesktop(
   listenMock.mockResolvedValue(() => {})
   invokeMock.mockImplementation((command: string, payload?: Record<string, unknown>) => {
     if (command === 'app_core_status') return Promise.resolve({ ready: true, error: null })
-    if (command === 'dashboard') return Promise.resolve([])
+    if (command === 'dashboard' || command === 'dashboard_live') return Promise.resolve([])
     if (command === 'market_snapshot') return Promise.resolve({})
     if (command === 'settings_snapshot') return Promise.resolve({ minimizeToTray: true, gameUrl: 'https://pokeidle.io/app', startupBrowserConcurrency: 1 })
-    if (command === 'integration_snapshot') return Promise.resolve(onIntegrationSnapshot() as IntegrationSnapshot)
+    if (command === 'integration_live_snapshot')
+      return Promise.resolve(toLiveSnapshot(onIntegrationSnapshot() as IntegrationSnapshot))
     return onCommand(command, payload)
   })
   act(() => {
@@ -49,6 +50,59 @@ function setupDesktop(
     useAppStore.setState({ real: { accounts: [] } })
     useAppStore.getState().setPage('Dashboard')
   })
+}
+
+function toLiveSnapshot(snapshot: IntegrationSnapshot): IntegrationLiveSnapshot {
+  return {
+    diagnostic: snapshot.diagnostic,
+    accounts: snapshot.accounts.map(({ account, state, metrics }) => ({
+      account,
+      state: {
+        level: state.level,
+        xp: state.xp,
+        gold: state.gold,
+        diamonds: state.diamonds,
+        orbs: state.orbs,
+        vip_until: state.vip_until,
+        vip_active: state.vip_active,
+        server_now: state.server_now,
+        vip_data_available: state.vip_data_available,
+        xp_bonus: state.xp_bonus,
+        center_free_at: state.center_free_at,
+        combat_lock_until: state.combat_lock_until,
+        server_offset_ms: state.server_offset_ms,
+        combat_locked: state.combat_locked,
+        command_transport_available: state.command_transport_available,
+        pending_navigation: state.pending_navigation,
+        navigation_error: state.navigation_error,
+        automation_error: state.automation_error,
+        hunt_slug: state.hunt_slug,
+        hunt_started_at_ms: state.hunt_started_at_ms,
+        pending_hunt_slug: state.pending_hunt_slug,
+        no_centro: state.no_centro,
+        activity: state.activity,
+        active_potion_source: state.active_potion_source,
+        wild: state.wild,
+        auto_buy_rules: state.auto_buy_rules,
+        capture_mode: state.capture_mode,
+        capture_queue_len: state.capture_queue_len,
+        capture_error: state.capture_error,
+        automation: state.automation,
+        hunt_session: state.hunt_session,
+        active_pokemon:
+          state.active_id === undefined
+            ? null
+            : (state.pokemon.find((pokemon) => pokemon.id === state.active_id) ?? null),
+        active_hunt: null,
+      },
+      metrics,
+      current_potion_id: null,
+      current_potion_quantity: 0,
+      current_ball_id: null,
+      current_ball_quantity: 0,
+      revisions: { depot: 1, inventory: 1, hunt_options: 1 },
+    })),
+  }
 }
 
 async function flushDesktopEffects() {
@@ -117,7 +171,7 @@ describe('Pokeidle Manager UI', () => {
     expect([...host.querySelectorAll<HTMLButtonElement>('.startup-shell nav button')].every(
       (button) => button.disabled,
     )).toBe(true)
-    expect(invokeMock.mock.calls.some(([command]) => command === 'dashboard')).toBe(false)
+    expect(invokeMock.mock.calls.some(([command]) => command === 'dashboard_live')).toBe(false)
 
     await act(async () => {
       resolveCore?.({ ready: true, error: null })
@@ -138,15 +192,17 @@ describe('Pokeidle Manager UI', () => {
     invokeMock.mockImplementation((command: string) => {
       if (command === 'app_core_status')
         return Promise.resolve({ ready: true, error: null })
-      if (command === 'dashboard') return Promise.resolve([])
+      if (command === 'dashboard' || command === 'dashboard_live') return Promise.resolve([])
       if (command === 'settings_snapshot')
         return Promise.resolve({
           minimizeToTray: true,
           gameUrl: 'https://pokeidle.io/app',
           startupBrowserConcurrency: 1,
         })
-      if (command === 'integration_snapshot')
-        return Promise.resolve({ accounts: [], diagnostic } as IntegrationSnapshot)
+      if (command === 'integration_live_snapshot')
+        return Promise.resolve(
+          toLiveSnapshot({ accounts: [], diagnostic } as IntegrationSnapshot),
+        )
       if (command === 'market_snapshot') return Promise.resolve({})
       return Promise.resolve(null)
     })
@@ -469,15 +525,15 @@ describe('Pokeidle Manager UI', () => {
     invokeMock.mockImplementation((command: string) => {
       if (command === 'app_core_status') return Promise.resolve({ ready: true, error: null })
       if (command === 'market_snapshot') return Promise.resolve(snapshot)
-      if (command === 'dashboard') return Promise.resolve([])
+      if (command === 'dashboard' || command === 'dashboard_live') return Promise.resolve([])
       if (command === 'settings_snapshot')
         return Promise.resolve({
           minimizeToTray: true,
           gameUrl: 'https://pokeidle.io/app',
           startupBrowserConcurrency: 1,
         })
-      if (command === 'integration_snapshot')
-        return Promise.resolve({
+      if (command === 'integration_live_snapshot')
+        return Promise.resolve(toLiveSnapshot({
           accounts: [],
           diagnostic: {
             lifecycle: 'closed',
@@ -523,7 +579,7 @@ describe('Pokeidle Manager UI', () => {
             message: '',
             accountId: null,
           },
-        })
+        } as IntegrationSnapshot))
       return Promise.resolve(undefined)
     })
     act(() => useAppStore.getState().setPage('Mercado'))
@@ -1521,6 +1577,35 @@ describe('Pokeidle Manager UI', () => {
     await act(async () => { retry.click(); await Promise.resolve() })
     expect(starts).toBe(2)
     expect([...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === 'Abrindo navegador…')?.disabled).toBe(true)
+  })
+  it('unlocks add-account when browser control fails before the lifecycle becomes terminal', async () => {
+    vi.useFakeTimers()
+    let currentSnapshot = { accounts: [], diagnostic: { lifecycle: 'closed', state: 'Aguardando', message: '', accountId: null, welcomeReceived: false } } as unknown as IntegrationSnapshot
+    setupDesktop((command) => command === 'start_real_account'
+      ? Promise.resolve({ status: 'started', accountId: 'stalled-browser-account' })
+      : Promise.resolve(null), () => currentSnapshot)
+
+    const host = render()
+    await flushDesktopEffects()
+    const add = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '+ Adicionar conta' || button.textContent === 'Abrindo navegador…')!
+    await act(async () => { add().click(); await Promise.resolve() })
+    expect(add().disabled).toBe(true)
+
+    currentSnapshot = {
+      accounts: [],
+      diagnostic: {
+        lifecycle: 'loadingGame',
+        state: 'Controle do navegador indisponível',
+        message: 'O controle da aba foi encerrado antes de iniciar a conta.',
+        accountId: 'stalled-browser-account',
+        welcomeReceived: false,
+      },
+    } as unknown as IntegrationSnapshot
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_200) })
+
+    expect(add().disabled).toBe(false)
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('O controle da aba foi encerrado')
+    expect([...host.querySelectorAll<HTMLButtonElement>('[role="alert"] button')].some((button) => button.textContent === 'Tentar novamente')).toBe(true)
   })
   it('does not unlock on another account’s waiting-login runtime, but accepts matching ready-to-login diagnostics', async () => {
     vi.useFakeTimers()

@@ -5,6 +5,7 @@ import { CustomTitleBar } from './components/CustomTitleBar'
 import { Badge, Button, Card, EmptyState, Switch } from './components/primitives'
 import { ItemAssetResolver, type GameItemCatalog, useGameItemCatalog } from './inventory/assets'
 import { ItemAsset, PokemonAsset } from './inventory/asset-components'
+import { ensureAccountDomain } from './account-domains'
 import { mergeMarketCatalog } from './inventory/market-catalog'
 import { formatHuntElapsed } from './dashboard-time'
 import { POKEMON_GRID_ROW_HEIGHT, pokemonGridWindow } from './inventory/virtual-grid'
@@ -50,9 +51,10 @@ import type {
   Page,
 } from './types'
 import {
-  accountFromRuntime,
+  accountFromLive,
   type IntegrationDiagnostic,
-  type IntegrationSnapshot,
+  type IntegrationLiveSnapshot,
+  type LiveRuntimeSnapshot,
 } from './real-account'
 
 const pages: Page[] = ['Dashboard', 'Onde Caçar', 'Automações', 'Inventários', 'Mercado', 'Configurações']
@@ -70,6 +72,49 @@ function browserIssueFromError(error: unknown): BrowserIssue | null {
   if (message.includes('BROWSER_NOT_FOUND')) return 'notFound'
   if (message.includes('BROWSER_INVALID_INSTALLATION')) return 'invalidInstallation'
   return null
+}
+
+function activePokemonAsDepot(account: AccountView): DepotPokemon | undefined {
+  const pokemon = account.activePokemon
+  if (!pokemon) return undefined
+  return {
+    id: pokemon.id,
+    name: pokemon.name,
+    level: pokemon.level,
+    speciesId: pokemon.speciesId,
+    looktype: pokemon.looktype,
+    lookShiny: pokemon.lookShiny,
+    shiny: pokemon.shiny,
+    power: pokemon.potency,
+    quality: pokemon.quality,
+    types: pokemon.types,
+    locked: false,
+  }
+}
+
+function selectedItemAsInventory(
+  account: AccountView,
+  kind: 'potion' | 'ball',
+): InventoryItem | undefined {
+  if (kind === 'potion' && account.activePotionId) {
+    return {
+      id: account.activePotionId,
+      assetKey: account.activePotionId,
+      name: account.potionName ?? 'Poção',
+      quantity: account.potions,
+      category: 'potions',
+    }
+  }
+  if (kind === 'ball' && account.activeBallId) {
+    return {
+      id: account.activeBallId,
+      assetKey: account.activeBallId,
+      name: account.ballName ?? 'Pokébola',
+      quantity: account.balls,
+      category: 'balls',
+    }
+  }
+  return undefined
 }
 
 function BrowserRequiredDialog({ issue, busy, notice, onDownload, onRetry, onCancel }: {
@@ -340,15 +385,9 @@ function AccountCard({
 }) {
   const open = useAppStore((state) => state.openAccountDetail)
   const hp = account.maxHp ? Math.round((account.hp / account.maxHp) * 100) : 0
-  const activePokemon = account.depot.find(
-    (pokemon) => pokemon.name === account.pokemon && pokemon.level === account.level,
-  )
-  const potion = account.inventory.find(
-    (item) => item.category === 'potions' && item.name === account.potionName,
-  )
-  const ball = account.inventory.find(
-    (item) => item.category === 'balls' && item.name === account.ballName,
-  )
+  const activePokemon = activePokemonAsDepot(account)
+  const potion = selectedItemAsInventory(account, 'potion')
+  const ball = selectedItemAsInventory(account, 'ball')
   const huntElapsed = formatHuntElapsed(account.huntStartedAtMs, nowMs)
   return (
     <Card className="account-card premium-account-card clickable" data-status={account.status}>
@@ -748,6 +787,15 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
   browserActionBusy: boolean
 }) {
   const back = useAppStore((state) => state.closeAccountDetail)
+  const isDesktop = '__TAURI_INTERNALS__' in window
+  const depotRevision = account.domainRevisions?.depot
+  const hasWildPokemon = Boolean(account.wildPokemon)
+  useEffect(() => {
+    if (!isDesktop || !hasWildPokemon || depotRevision === undefined) return
+    void ensureAccountDomain(account.id, 'depot').catch((error: unknown) => {
+      console.warn('[account-detail] Não foi possível carregar o depósito.', error)
+    })
+  }, [account.id, depotRevision, hasWildPokemon, isDesktop])
   const catalog = useGameItemCatalog()
   const [transferError, setTransferError] = useState<string | null>(null)
   const [confirmRemoval, setConfirmRemoval] = useState(false)
@@ -778,9 +826,7 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
   const levelXp = Math.max(0, account.xp - levelStart)
   const levelRequired = Math.max(0, account.xpNext - levelStart)
   const xp = levelRequired ? Math.round((levelXp / levelRequired) * 100) : 0
-  const activePokemon = account.depot.find(
-    (pokemon) => pokemon.name === account.pokemon && pokemon.level === account.level,
-  )
+  const activePokemon = activePokemonAsDepot(account)
   const wildTypes = account.wildPokemon
     ? (account.depot.find((pokemon) => pokemon.name === account.wildPokemon?.name)?.types ?? [])
     : []
@@ -1410,6 +1456,56 @@ function Automations() {
   const accounts = useAppStore(selectVisibleAccounts),
     { selectedIds } = useAppStore((state) => state.ui),
     { applyAutomation, setPotionThreshold, settings } = useAppStore()
+  const realDomains = useAppStore((state) => state.real.domains)
+  const selectedRealAccounts = accounts.filter(
+    (account) => selectedIds.includes(account.id) && account.domainRevisions,
+  )
+  const domainLoadKey = selectedRealAccounts
+    .map((account) =>
+      [
+        account.id,
+        account.domainRevisions?.depot,
+        account.domainRevisions?.inventory,
+        account.domainRevisions?.hunt_options,
+      ].join(':'),
+    )
+    .join('|')
+  const isDesktop = '__TAURI_INTERNALS__' in window
+  const [domainLoadError, setDomainLoadError] = useState<string | null>(null)
+  const [domainRetry, setDomainRetry] = useState(0)
+  useEffect(() => {
+    let current = true
+    setDomainLoadError(null)
+    if (!isDesktop || settings.mockMode || !domainLoadKey) {
+      return () => {
+        current = false
+      }
+    }
+    const accountIds = domainLoadKey.split('|').map((item) => item.split(':')[0])
+    void Promise.all(
+      accountIds.flatMap((accountId) => [
+        ensureAccountDomain(accountId, 'depot'),
+        ensureAccountDomain(accountId, 'inventory'),
+        ensureAccountDomain(accountId, 'hunt_options'),
+      ]),
+    ).catch((error: unknown) => {
+      if (current) setDomainLoadError(String(error))
+      console.warn('[automations] Falha ao carregar domínios.', error)
+    })
+    return () => {
+      current = false
+    }
+  }, [domainLoadKey, domainRetry, isDesktop, settings.mockMode])
+  const domainsLoading = selectedRealAccounts.some((account) => {
+    const revisions = account.domainRevisions
+    const cache = realDomains?.[account.id]
+    return (
+      !revisions ||
+      cache?.depot?.revision !== revisions.depot ||
+      cache?.inventory?.revision !== revisions.inventory ||
+      cache?.hunt_options?.revision !== revisions.hunt_options
+    )
+  })
   const [draftThreshold, setDraftThreshold] = useState<number | null>(null)
   const selectedThreshold =
     accounts.find((account) => selectedIds.includes(account.id))?.potionThreshold ?? 40
@@ -1428,6 +1524,17 @@ function Automations() {
           <AccountSelector />
           <HuntControl />
           <CombatItemPreferences />
+          {domainsLoading && !domainLoadError && (
+            <p className="muted" role="status">Carregando dados das contas…</p>
+          )}
+          {domainLoadError && (
+            <p className="muted" role="alert">
+              Não foi possível carregar os dados das contas.{' '}
+              <button type="button" onClick={() => setDomainRetry((retry) => retry + 1)}>
+                Tentar novamente
+              </button>
+            </p>
+          )}
           {automationError && (
             <p className="muted" role="status">
               Última automação: {automationError}
@@ -1969,6 +2076,9 @@ function AutoBuyConfig({
 function Inventory() {
   const catalog = useGameItemCatalog()
   const accounts = useAppStore(selectVisibleAccounts)
+  const realDomains = useAppStore((state) => state.real.domains)
+  const settings = useAppStore((state) => state.settings)
+  const isDesktop = '__TAURI_INTERNALS__' in window
   const inventoryTab = useAppStore((state) => state.ui.inventoryTab)
   const setInventoryTab = useAppStore((state) => state.setInventoryTab)
   const [accountId, setAccountId] = useState('all')
@@ -1990,6 +2100,34 @@ function Inventory() {
   const pokemonGridScrollRef = useRef<HTMLDivElement>(null)
   const selectedAccounts =
     accountId === 'all' ? accounts : accounts.filter((account) => account.id === accountId)
+  const domainLoadKey = selectedAccounts
+    .filter((account) => account.domainRevisions)
+    .map(
+      (account) =>
+        `${account.id}:${account.domainRevisions?.depot}:${account.domainRevisions?.inventory}`,
+    )
+    .join('|')
+  const [domainLoadError, setDomainLoadError] = useState('')
+  useEffect(() => {
+    if (!isDesktop || settings.mockMode || !domainLoadKey) return
+    setDomainLoadError('')
+    const accountIds = domainLoadKey.split('|').map((item) => item.split(':')[0])
+    void Promise.all(
+      accountIds.flatMap((id) => [
+        ensureAccountDomain(id, 'depot'),
+        ensureAccountDomain(id, 'inventory'),
+      ]),
+    ).catch((error: unknown) => setDomainLoadError(String(error)))
+  }, [domainLoadKey, isDesktop, settings.mockMode])
+  const missingDomains = selectedAccounts.some((account) => {
+    const revisions = account.domainRevisions
+    if (!revisions) return false
+    const cache = realDomains?.[account.id]
+    return (
+      cache?.depot?.revision !== revisions.depot ||
+      cache?.inventory?.revision !== revisions.inventory
+    )
+  })
   const allItems = useMemo(
     () =>
       aggregateItems(accounts, accountId).map((item) => ItemAssetResolver.describe(item, catalog)),
@@ -2037,6 +2175,16 @@ function Inventory() {
   const lockSettings = selectedAccounts[0]?.depotLocks
   return (
     <main className="page inventory-page">
+      {domainLoadError && (
+        <p className="inventory-domain-status" role="status">
+          Não foi possível carregar os dados: {domainLoadError}
+        </p>
+      )}
+      {!domainLoadError && missingDomains && (
+        <p className="inventory-domain-status" role="status">
+          Carregando dados da conta…
+        </p>
+      )}
       <PageHeader
         title="Inventários"
         actions={
@@ -3513,7 +3661,7 @@ export default function App() {
     if (startupDebug) console.info('[startup] App first render', performance.now().toFixed(1))
   }
   const appIsReady = !isDesktop || coreStatus.ready
-  const settlePendingAdd = useCallback((snapshot: IntegrationSnapshot, requestSequence: number) => {
+  const settlePendingAdd = useCallback((snapshot: IntegrationLiveSnapshot, requestSequence: number) => {
     const pendingId = pendingAddAccountId.current
     const diagnostic = snapshot.diagnostic
     if (!pendingId || requestSequence <= pendingAddSnapshotBaseline.current) return
@@ -3544,7 +3692,11 @@ export default function App() {
       return
     }
 
-    if (diagnosticMatches && (diagnostic.lifecycle === 'error' || diagnostic.lifecycle === 'closed')) {
+    if (diagnosticMatches && (
+      diagnostic.lifecycle === 'error'
+      || diagnostic.lifecycle === 'closed'
+      || diagnostic.state === 'Controle do navegador indisponível'
+    )) {
       fail(diagnostic.message.trim()
         ? `Não foi possível concluir a conexão: ${diagnostic.message}`
         : 'Não foi possível concluir a conexão da conta. Tente novamente.')
@@ -3606,9 +3758,9 @@ export default function App() {
     if (!isDesktop || !appIsReady) return
     if (startupDebug)
       console.info('[startup] persisted accounts hydration start', performance.now().toFixed(1))
-    void invoke<IntegrationSnapshot['accounts']>('dashboard')
+    void invoke<LiveRuntimeSnapshot[]>('dashboard_live')
       .then((accounts) => {
-        setRealAccounts(accounts.map(accountFromRuntime))
+        setRealAccounts(accounts.map(accountFromLive))
         setHydrationComplete(true)
         if (startupDebug)
           console.info('[startup] persisted accounts hydration end', performance.now().toFixed(1))
@@ -3649,14 +3801,14 @@ export default function App() {
             '[startup] first paint complete; scheduling account bootstrap',
             performance.now().toFixed(1),
           )
-        void invoke<IntegrationSnapshot['accounts']>('schedule_restored_account_bootstraps').then(
-          (accounts) => {
-            if (!disposed) setRealAccounts(accounts.map(accountFromRuntime))
-          },
-        ).catch((error: unknown) => {
-          if (!disposed && startupDebug)
-            console.warn('[startup] account bootstrap scheduling failed', error)
-        })
+        void invoke<LiveRuntimeSnapshot[]>('schedule_restored_account_live_bootstraps')
+          .then((accounts) => {
+            if (!disposed) setRealAccounts(accounts.map(accountFromLive))
+          })
+          .catch((error: unknown) => {
+            if (!disposed && startupDebug)
+              console.warn('[startup] account bootstrap scheduling failed', error)
+          })
       }, 0)
     })
     return () => {
@@ -3710,10 +3862,10 @@ export default function App() {
     const refresh = async () => {
       const requestSequence = ++integrationSnapshotSequence.current
       try {
-        const snapshot = await invoke<IntegrationSnapshot>('integration_snapshot')
+        const snapshot = await invoke<IntegrationLiveSnapshot>('integration_live_snapshot')
         if (disposed) return
         setDiagnostic(snapshot.diagnostic)
-        setRealAccounts(snapshot.accounts.map(accountFromRuntime))
+        setRealAccounts(snapshot.accounts.map(accountFromLive))
         settlePendingAdd(snapshot, requestSequence)
         if (startupDebug && snapshot.diagnostic.welcomeReceived)
           console.info('[startup] first welcome observed', performance.now().toFixed(1))

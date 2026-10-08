@@ -14,6 +14,7 @@ import guildBoostIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-guil
 import twitchBonusIcon from '../assets/pokeidle-theme/backgrounds/where-hunt-twitch.webp'
 import { useGameItemCatalog } from '../inventory/assets'
 import { PokemonAsset } from '../inventory/asset-components'
+import { ensureAccountDomain } from '../account-domains'
 import { selectVisibleAccounts, useAppStore } from '../stores/app-store'
 import type { AccountView, DepotPokemon } from '../types'
 import { estimateHunts, hasCompleteCalculationData, readHuntReference, type HuntEstimate, type HuntReference } from './calculator'
@@ -97,10 +98,17 @@ export function WhereToHunt() {
   const catalog = useGameItemCatalog()
   const [loading, setLoading] = useState(() => !reference)
   const [loadError, setLoadError] = useState('')
+  const [huntOptionsLoading, setHuntOptionsLoading] = useState(false)
+  const [huntOptionsError, setHuntOptionsError] = useState('')
   const [ranking, setRanking] = useState<Ranking>('trainer')
   const [query, setQuery] = useState('')
   const [region, setRegion] = useState('all')
   const account = accounts.find((entry) => entry.id === selectedAccountId) ?? accounts[0]
+  const accountIdForHunts = account?.id
+  const huntOptionsRevision = account?.domainRevisions?.hunt_options
+  const loadedHuntOptionsRevision = useAppStore((state) =>
+    account ? state.real.domains?.[account.id]?.hunt_options?.revision : undefined,
+  )
 
   useEffect(() => {
     let current = true
@@ -125,6 +133,36 @@ export function WhereToHunt() {
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [reference])
+
+  useEffect(() => {
+    if (!accountIdForHunts || huntOptionsRevision === undefined) {
+      setHuntOptionsLoading(false)
+      setHuntOptionsError('')
+      return
+    }
+    if (loadedHuntOptionsRevision === huntOptionsRevision) {
+      setHuntOptionsLoading(false)
+      setHuntOptionsError('')
+      return
+    }
+
+    let current = true
+    setHuntOptionsLoading(true)
+    setHuntOptionsError('')
+    void ensureAccountDomain(accountIdForHunts, 'hunt_options')
+      .catch((error: unknown) => {
+        if (current)
+          setHuntOptionsError(
+            error instanceof Error ? error.message : 'Não foi possível carregar as hunts da conta.',
+          )
+      })
+      .finally(() => {
+        if (current) setHuntOptionsLoading(false)
+      })
+    return () => {
+      current = false
+    }
+  }, [accountIdForHunts, huntOptionsRevision, loadedHuntOptionsRevision])
 
   const estimates = useMemo(() => {
     if (!account || !reference) return []
@@ -246,9 +284,18 @@ export function WhereToHunt() {
               <input aria-label="Buscar hunt ou região" placeholder="Buscar hunt ou região..." value={query} onChange={(event) => setQuery(event.target.value)} />
               <label className="where-hunt-region">Região<select aria-label="Filtrar região" value={region} onChange={(event) => setRegion(event.target.value)}><option value="all">Todas</option>{regions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             </div>
-            {loadError && <p className="where-hunt-notice" role="status">{loadError}</p>}
+            {(loadError || huntOptionsError) && (
+              <p className="where-hunt-notice" role="status">
+                {loadError || huntOptionsError}
+              </p>
+            )}
+            {(loading || huntOptionsLoading) && (
+              <p className="where-hunt-notice" role="status">
+                Carregando dados para as recomendações…
+              </p>
+            )}
             {missingAccountData && <p className="where-hunt-notice" role="status">Faltam IVs individuais do Pokémon ativo. Aguarde a próxima atualização do estado da conta para calcular.</p>}
-            {!loading && !loadError && !estimates.length && <p className="where-hunt-notice">{missingAccountData ? 'O cálculo vai aparecer quando os dados do Pokémon estiverem completos.' : 'Nenhuma hunt compatível com o nível da conta foi encontrada.'}</p>}
+            {!loading && !huntOptionsLoading && !loadError && !huntOptionsError && !estimates.length && <p className="where-hunt-notice">{missingAccountData ? 'O cálculo vai aparecer quando os dados do Pokémon estiverem completos.' : 'Nenhuma hunt compatível com o nível da conta foi encontrada.'}</p>}
             <div className="where-hunt-list">
               {estimates.slice(0, 80).map((result, index) => (
                 <article className="where-hunt-result" key={result.hunt.s}>
