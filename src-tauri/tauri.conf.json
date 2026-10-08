@@ -39,6 +39,9 @@
       "../docs/licenses/CDLA-Permissive-2.0.txt": "licenses/CDLA-Permissive-2.0.txt"
     },
     "icon": ["icons/icon.ico", "icons/icon.png"],
-    "windows": { "wix": { "language": "pt-BR" } }
+    "windows": {
+      "nsis": { "languages": ["PortugueseBR"] },
+      "wix": { "language": "pt-BR" }
+    }
   }
 }

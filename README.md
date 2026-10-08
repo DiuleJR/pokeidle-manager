@@ -17,6 +17,16 @@ npm run tauri:build:community
 
 A edição comunitária é compilada sem um serviço comercial de licenciamento. O servidor opcional do painel mobile serve apenas para desenvolvimento; não o habilite em uma versão empacotada.
 
+## Instalação no Windows
+
+O aplicativo é destinado ao Windows 10 e Windows 11. A v0.1.0 ainda está em preparação e validação: neste momento não há instalador oficial para baixar. Quando a versão for aprovada e publicada, os downloads oficiais serão disponibilizados exclusivamente em [GitHub Releases](https://github.com/DiuleJR/pokeidle-manager/releases). Não use instaladores enviados por canais ou links não verificados.
+
+O instalador não inclui o Brave. Para entrar ou reabrir uma conta no modo Browser, instale o Brave pelo [site oficial](https://brave.com/pt-br/download/); o Manager não baixa nem distribui o navegador.
+
+Os dados do Manager e os perfis do Brave ficam no computador. Perfis podem conter cookies e sessões autenticadas. Nunca envie cookies, tokens, perfis do navegador, bancos SQLite reais, credenciais ou logs brutos em Issues; consulte [Privacidade](PRIVACY.md) e [Política de segurança](SECURITY.md) antes de relatar um problema.
+
+Os instaladores gerados nesta preparação não têm assinatura digital. O Windows SmartScreen pode exibir avisos diferentes conforme o computador e a reputação do arquivo; confira sempre a origem do download antes de decidir como prosseguir.
+
 ## Requisito de navegador
 
 O Pokeidle Manager utiliza o Brave para abrir e gerenciar contas no modo Browser e durante o login. O Brave não é distribuído junto com o Manager nem é baixado automaticamente pelo aplicativo. Se não estiver instalado, o Manager orientará você a obtê-lo no site oficial do Brave. Depois que uma sessão autenticada é transferida para o modo Background, a conexão é gerenciada pelo próprio Manager; abrir o Browser ou refazer login continua exigindo o Brave.
