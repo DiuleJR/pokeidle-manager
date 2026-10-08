@@ -91,7 +91,7 @@ describe('real account domain cache', () => {
     expect(useAppStore.getState().real.domains?.[account.id].depot?.data).toBe(depot)
   })
 
-  it('invalidates only the domain whose revision changed', () => {
+  it('keeps the previous domain snapshot visible while only the changed revision refreshes', () => {
     const account = makeLiveAccount()
     const depot: DepotPokemon[] = [
       {
@@ -131,9 +131,9 @@ describe('real account domain cache', () => {
     const refreshed = useAppStore.getState().real.accounts[0]
 
     expect(refreshed.depot).toBe(depot)
-    expect(refreshed.inventory).toEqual([])
+    expect(refreshed.inventory).toBe(inventory)
     expect(useAppStore.getState().real.domains?.[account.id].depot?.revision).toBe(1)
-    expect(useAppStore.getState().real.domains?.[account.id].inventory).toBeUndefined()
+    expect(useAppStore.getState().real.domains?.[account.id].inventory?.revision).toBe(1)
   })
 
   it('ignores stale or account-mismatched domain responses', () => {

@@ -97,25 +97,39 @@ const sameLiveSummary = (left: AccountView, right: AccountView) => {
   )
 }
 
-const reconcileLiveAccount = (incoming: AccountView, previous?: AccountView): AccountView => {
+const reconcileLiveAccount = (
+  incoming: AccountView,
+  previous?: AccountView,
+  previousDomains?: AccountDomainCache,
+): AccountView => {
   if (!previous || !incoming.domainRevisions || !previous.domainRevisions) return incoming
-  const sameRevision = (domain: AccountDomain) =>
-    incoming.domainRevisions?.[domain] === previous.domainRevisions?.[domain]
   const reconciled = { ...incoming }
   for (const domain of accountDomainKeys) {
-    if (sameRevision(domain)) {
-      // Keep large arrays stable across summary polls. A new domain revision
-      // deliberately leaves the empty list from accountFromLive in place.
-      if (domain === 'depot') reconciled.depot = previous.depot
-      else if (domain === 'inventory') reconciled.inventory = previous.inventory
-      else reconciled.huntOptions = previous.huntOptions
+    const sameRevision = incoming.domainRevisions[domain] === previous.domainRevisions[domain]
+    // Keep the last usable snapshot visible while its newer revision loads.
+    // The cache entry, not the incoming summary's empty placeholder, is the
+    // source of truth for whether this domain has been loaded before.
+    if (domain === 'depot') {
+      const cachedData = previousDomains?.depot?.data
+      if (cachedData !== undefined) reconciled.depot = cachedData
+      else if (sameRevision) reconciled.depot = previous.depot
+    } else if (domain === 'inventory') {
+      const cachedData = previousDomains?.inventory?.data
+      if (cachedData !== undefined) reconciled.inventory = cachedData
+      else if (sameRevision) reconciled.inventory = previous.inventory
+    } else {
+      const cachedData = previousDomains?.hunt_options?.data
+      if (cachedData !== undefined) reconciled.huntOptions = cachedData
+      else if (sameRevision) reconciled.huntOptions = previous.huntOptions
     }
   }
   const domainsUnchanged = accountDomainKeys.every((domain) => {
     const viewKey = domainViewKey[domain]
     return previous[viewKey] === reconciled[viewKey]
   })
-  const revisionsUnchanged = accountDomainKeys.every(sameRevision)
+  const revisionsUnchanged = accountDomainKeys.every(
+    (domain) => incoming.domainRevisions?.[domain] === previous.domainRevisions?.[domain],
+  )
   return sameLiveSummary(previous, reconciled) && domainsUnchanged && revisionsUnchanged
     ? previous
     : reconciled
@@ -237,7 +251,11 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => {
       const previousById = new Map(state.real.accounts.map((account) => [account.id, account]))
       const accounts = incomingAccounts.map((account) =>
-        reconcileLiveAccount(account, previousById.get(account.id)),
+        reconcileLiveAccount(
+          account,
+          previousById.get(account.id),
+          state.real.domains?.[account.id],
+        ),
       )
       const domains: Record<string, AccountDomainCache> = {}
       for (const account of accounts) {
@@ -247,7 +265,7 @@ export const useAppStore = create<AppState>((set) => ({
         const retained: AccountDomainCache = {}
         for (const domain of accountDomainKeys) {
           const entry = previousDomains[domain]
-          if (entry?.revision === revisions[domain]) retained[domain] = entry as never
+          if (entry) retained[domain] = entry as never
         }
         if (Object.keys(retained).length) domains[account.id] = retained
       }

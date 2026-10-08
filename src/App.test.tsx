@@ -745,6 +745,68 @@ describe('Pokeidle Manager UI', () => {
     expect(host.textContent).toContain('Venusaur')
     expect(useAppStore.getState().ui.inventoryTab).toBe('pokemon')
   })
+  it('keeps cached inventory and Pokémon visible across stale revisions without a loading banner', () => {
+    const account = {
+      ...mockAccounts[0],
+      id: 'swr-inventory-account',
+      domainRevisions: { depot: 10, inventory: 10, hunt_options: 10 },
+      depot: [],
+      inventory: [],
+      huntOptions: [],
+    }
+    act(() => {
+      useAppStore.getState().setRealAccounts([account])
+      useAppStore.getState().setRealAccountDomain('inventory', {
+        accountId: account.id,
+        revision: 10,
+        changed: true,
+        data: [
+          {
+            id: 'old-potion',
+            assetKey: 'old-potion',
+            name: 'Poção em cache',
+            quantity: 10,
+            category: 'potions',
+          },
+        ],
+      })
+      useAppStore.getState().setRealAccountDomain('depot', {
+        accountId: account.id,
+        revision: 10,
+        changed: true,
+        data: [{ id: 'old-pokemon', name: 'Pokémon em cache', level: 10, types: [], locked: false }],
+      })
+      useAppStore.getState().setRealAccounts([
+        {
+          ...account,
+          domainRevisions: { depot: 11, inventory: 11, hunt_options: 10 },
+        },
+      ])
+      useAppStore.getState().setPage('Inventários')
+    })
+
+    const host = render()
+    expect(host.textContent).toContain('Poção em cache')
+    expect(host.querySelector('.inventory-domain-status')).toBeNull()
+
+    const ballsFilter = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Balls',
+    )!
+    act(() => ballsFilter.click())
+    expect(host.querySelector('.inventory-domain-status')).toBeNull()
+    const allFilter = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Todos',
+    )!
+    act(() => allFilter.click())
+    expect(host.textContent).toContain('Poção em cache')
+
+    const pokemonTab = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Pokémon',
+    )!
+    act(() => pokemonTab.click())
+    expect(host.textContent).toContain('Pokémon em cache')
+    expect(host.querySelector('.inventory-domain-status')).toBeNull()
+  })
   it('persists the selected startup concurrency preference in the UI state', () => {
     const host = render()
     const settingsNav = [...host.querySelectorAll('button')].find(

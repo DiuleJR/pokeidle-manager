@@ -2116,6 +2116,7 @@ function Inventory() {
   const [domainLoadError, setDomainLoadError] = useState('')
   useEffect(() => {
     if (!isDesktop || settings.mockMode || !domainLoadKey) return
+    let active = true
     setDomainLoadError('')
     const accountIds = domainLoadKey.split('|').map((item) => item.split(':')[0])
     void Promise.all(
@@ -2123,16 +2124,19 @@ function Inventory() {
         ensureAccountDomain(id, 'depot'),
         ensureAccountDomain(id, 'inventory'),
       ]),
-    ).catch((error: unknown) => setDomainLoadError(String(error)))
+    ).catch((error: unknown) => {
+      if (active) setDomainLoadError(String(error))
+    })
+    return () => {
+      active = false
+    }
   }, [domainLoadKey, isDesktop, settings.mockMode])
-  const missingDomains = selectedAccounts.some((account) => {
+  const visibleDomain = inventoryTab === 'items' ? 'inventory' : 'depot'
+  const missingInitialData = selectedAccounts.some((account) => {
     const revisions = account.domainRevisions
     if (!revisions) return false
     const cache = realDomains?.[account.id]
-    return (
-      cache?.depot?.revision !== revisions.depot ||
-      cache?.inventory?.revision !== revisions.inventory
-    )
+    return cache?.[visibleDomain]?.data === undefined
   })
   const allItems = useMemo(
     () =>
@@ -2179,18 +2183,11 @@ function Inventory() {
     return () => observer.disconnect()
   }, [])
   const lockSettings = selectedAccounts[0]?.depotLocks
+  const hasVisibleCachedData = selectedAccounts.some(
+    (account) => realDomains?.[account.id]?.[visibleDomain]?.data !== undefined,
+  )
   return (
     <main className="page inventory-page">
-      {domainLoadError && (
-        <p className="inventory-domain-status" role="status">
-          Não foi possível carregar os dados: {domainLoadError}
-        </p>
-      )}
-      {!domainLoadError && missingDomains && (
-        <p className="inventory-domain-status" role="status">
-          Carregando dados da conta…
-        </p>
-      )}
       <PageHeader
         title="Inventários"
         actions={
@@ -2211,6 +2208,18 @@ function Inventory() {
           </label>
         }
       />
+      {domainLoadError && (
+        <p className="inventory-domain-status inventory-domain-status-error" role="status">
+          {hasVisibleCachedData
+            ? 'Não foi possível atualizar. Exibindo os últimos dados disponíveis.'
+            : `Não foi possível carregar os dados: ${domainLoadError}`}
+        </p>
+      )}
+      {missingInitialData && (
+        <p className="inventory-domain-status" role="status">
+          Carregando dados da conta…
+        </p>
+      )}
       <div className="tabs inventory-tabs">
         <button
           className={inventoryTab === 'items' ? 'active' : ''}

@@ -75,8 +75,144 @@ describe('account domain requests', () => {
     expect(invokeMock).toHaveBeenCalledTimes(2)
     expect(invokeMock).toHaveBeenLastCalledWith('account_depot', {
       accountId: account.id,
-      knownRevision: undefined,
+      knownRevision: 1,
     })
+  })
+
+  it('revalidates revision 10 in the background while keeping its data visible until revision 11 arrives', async () => {
+    const account = liveAccount(10)
+    const oldInventory = [
+      { id: 'old', assetKey: 'old', name: 'Poção antiga', quantity: 10, category: 'potions' as const },
+    ]
+    const newInventory = [
+      { id: 'new', assetKey: 'new', name: 'Poção atualizada', quantity: 11, category: 'potions' as const },
+    ]
+    useAppStore.getState().setRealAccounts([account])
+    useAppStore.getState().setRealAccountDomain('inventory', {
+      accountId: account.id,
+      revision: 10,
+      changed: true,
+      data: oldInventory,
+    })
+    useAppStore.getState().setRealAccounts([
+      {
+        ...account,
+        domainRevisions: { depot: 10, inventory: 11, hunt_options: 10 },
+      },
+    ])
+
+    let resolveRead:
+      | ((response: {
+          accountId: string
+          revision: number
+          changed: boolean
+          data: typeof newInventory
+        }) => void)
+      | undefined
+    invokeMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRead = resolve
+      }),
+    )
+    const { ensureAccountDomain } = await import('./account-domains')
+    const refresh = ensureAccountDomain(account.id, 'inventory')
+
+    expect(useAppStore.getState().real.accounts[0].inventory).toBe(oldInventory)
+    expect(useAppStore.getState().real.domains?.[account.id]?.inventory).toEqual({
+      revision: 10,
+      data: oldInventory,
+    })
+    expect(invokeMock).toHaveBeenCalledWith('account_inventory', {
+      accountId: account.id,
+      knownRevision: 10,
+    })
+
+    resolveRead?.({
+      accountId: account.id,
+      revision: 11,
+      changed: true,
+      data: newInventory,
+    })
+    await refresh
+
+    expect(useAppStore.getState().real.accounts[0].inventory).toBe(newInventory)
+    expect(useAppStore.getState().real.domains?.[account.id]?.inventory).toEqual({
+      revision: 11,
+      data: newInventory,
+    })
+  })
+
+  it('keeps all four inventories available during an all-account refresh and deduplicates each account', async () => {
+    const accounts = Array.from({ length: 4 }, (_, index) => ({
+      ...liveAccount(10),
+      id: `all-account-${index + 1}`,
+    }))
+    useAppStore.getState().setRealAccounts(accounts)
+    for (const [index, account] of accounts.entries()) {
+      useAppStore.getState().setRealAccountDomain('inventory', {
+        accountId: account.id,
+        revision: 10,
+        changed: true,
+        data: [
+          {
+            id: `old-${index}`,
+            assetKey: `old-${index}`,
+            name: `Item em cache ${index + 1}`,
+            quantity: 10,
+            category: 'balls',
+          },
+        ],
+      })
+    }
+    useAppStore.getState().setRealAccounts(
+      accounts.map((account) => ({
+        ...account,
+        domainRevisions: { depot: 10, inventory: 11, hunt_options: 10 },
+      })),
+    )
+
+    const resolvers = new Map<string, (response: unknown) => void>()
+    invokeMock.mockImplementation((_command: string, payload: { accountId: string }) =>
+      new Promise((resolve) => resolvers.set(payload.accountId, resolve)),
+    )
+    const { ensureAccountDomain } = await import('./account-domains')
+    const requests = accounts.flatMap((account) => [
+      ensureAccountDomain(account.id, 'inventory'),
+      ensureAccountDomain(account.id, 'inventory'),
+    ])
+
+    expect(invokeMock).toHaveBeenCalledTimes(4)
+    expect(useAppStore.getState().real.accounts.map((account) => account.inventory[0]?.name)).toEqual([
+      'Item em cache 1',
+      'Item em cache 2',
+      'Item em cache 3',
+      'Item em cache 4',
+    ])
+
+    for (const [index, account] of accounts.entries()) {
+      resolvers.get(account.id)?.({
+        accountId: account.id,
+        revision: 11,
+        changed: true,
+        data: [
+          {
+            id: `new-${index}`,
+            assetKey: `new-${index}`,
+            name: `Item atualizado ${index + 1}`,
+            quantity: 11,
+            category: 'balls',
+          },
+        ],
+      })
+    }
+    await Promise.all(requests)
+
+    expect(useAppStore.getState().real.accounts.map((account) => account.inventory[0]?.name)).toEqual([
+      'Item atualizado 1',
+      'Item atualizado 2',
+      'Item atualizado 3',
+      'Item atualizado 4',
+    ])
   })
 
   it('deduplicates concurrent reads and discards an old revision response', async () => {
