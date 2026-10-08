@@ -6,13 +6,13 @@ Este repositório é o código-fonte oficial da edição comunitária do Pokeidl
 
 ## Download
 
-A versão estável **v0.1.0 ainda não foi publicada**. A versão candidata pública atual para testes é **v0.1.0-rc.1 (RC1)**.
+A versão estável **v0.1.0 ainda não foi publicada**. A versão candidata pública atual e recomendada para testes é **v0.1.0-rc.2 (RC2)**. A RC1 continua disponível apenas para histórico e reprodutibilidade.
 
-Baixe o aplicativo exclusivamente pela [página oficial da RC1](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.1) ou pela página de [GitHub Releases](https://github.com/DiuleJR/pokeidle-manager/releases). Para a maioria dos usuários, recomendamos o instalador NSIS:
+Baixe o aplicativo exclusivamente pela [página oficial da RC2](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.2) ou pela página de [GitHub Releases](https://github.com/DiuleJR/pokeidle-manager/releases). Para a maioria dos usuários, recomendamos o instalador NSIS:
 
 `Pokeidle.Manager_0.1.0_x64-setup.exe`
 
-O MSI e o arquivo `SHA256SUMS.txt` para verificação de integridade também estão disponíveis na página da RC1. Esta é uma pré-release para testes e pode conter bugs; não a confunda com uma versão estável.
+O MSI e o arquivo `SHA256SUMS.txt` para verificação de integridade também estão disponíveis na página da RC2. Esta é uma pré-release para testes e pode conter bugs; não a confunda com uma versão estável.
 
 ## Compilar localmente
 
@@ -29,13 +29,13 @@ A edição comunitária é compilada sem um serviço comercial de licenciamento.
 
 ## Instalação no Windows
 
-O aplicativo é destinado ao Windows 10 e Windows 11. Use somente os instaladores publicados na página oficial da [RC1](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.1); não use instaladores enviados por canais ou links não verificados.
+O aplicativo é destinado ao Windows 10 e Windows 11. Use somente os instaladores publicados na página oficial da [RC2](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.2); não use instaladores enviados por canais ou links não verificados. A [RC1](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.1) permanece disponível para histórico e reprodutibilidade.
 
 O instalador não inclui o Brave. Para entrar ou reabrir uma conta no modo Browser, instale o Brave pelo [site oficial](https://brave.com/pt-br/download/); o Manager não baixa nem distribui o navegador.
 
 Os dados do Manager e os perfis do Brave ficam no computador. Perfis podem conter cookies e sessões autenticadas. Nunca envie cookies, tokens, perfis do navegador, bancos SQLite reais, credenciais ou logs brutos em Issues; consulte [Privacidade](PRIVACY.md) e [Política de segurança](SECURITY.md) antes de relatar um problema.
 
-Os instaladores da RC1 ainda não possuem assinatura digital. O Windows SmartScreen pode exibir um aviso; confira a origem do arquivo e baixe-o somente pela página oficial de Releases.
+Os instaladores da RC2 ainda não possuem assinatura digital. O Windows SmartScreen pode exibir um aviso; confira a origem do arquivo e baixe-o somente pela página oficial de Releases.
 
 ## Requisito de navegador
 
