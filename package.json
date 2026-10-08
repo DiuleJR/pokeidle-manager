@@ -24,7 +24,7 @@
     "tauri:dev:community": "tauri dev -- --no-default-features --features community-build",
     "tauri:dev:smoke": "tauri dev --config src-tauri/tauri.smoke.conf.json --features community-build",
     "tauri:dev:mobile": "tauri dev -- --no-default-features --features community-build,mobile-local-server",
-    "tauri:build:community": "tauri build -- --no-default-features --features community-build"
+    "tauri:build:community": "tauri build -- --locked --no-default-features --features community-build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.1",

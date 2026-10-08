@@ -8,5 +8,5 @@ Ao relatar um problema, informe a versão ou o commit afetado, o sistema operaci
 
 - Os perfis do navegador são persistidos na pasta de dados do aplicativo e podem conter cookies de sessões autenticadas. Trate essa pasta como dado que contém credenciais.
 - O servidor opcional do painel mobile é apenas para desenvolvimento e escuta no endereço local (`loopback`). Não o exponha à rede local nem à internet.
-- O auxiliar de desenvolvimento ZeroTier opcional vincula deliberadamente o servidor de desenvolvimento do Vite a uma interface ZeroTier selecionada. Qualquer pessoa que alcance essa interface pela rede pode conseguir acessar a interface de desenvolvimento; a verificação de `Origin` não é autenticação. Use-o somente em uma rede confiável e encerre-o ao terminar.
+- A variável opcional `POKEIDLE_MOBILE_ZEROTIER_IP` ajusta hosts permitidos e a verificação de `Origin` do Vite, mas o servidor permanece vinculado a `127.0.0.1` no código deste repositório. A verificação de `Origin` não é autenticação; não a use como controle de acesso.
 - Os diagnósticos do Rust são enviados a `stderr` pelo assinante do `tracing`. O sistema operacional ou um inicializador pode capturá-los. Há sanitização para alguns quadros do protocolo inspecionados, mas não presuma que os logs nunca contenham informações sensíveis.

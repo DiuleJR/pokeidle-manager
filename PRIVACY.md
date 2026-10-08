@@ -14,9 +14,11 @@ O aplicativo se comunica com `pokeidle.io` para sessões do jogo, do navegador e
 
 Nesta revisão do código-fonte, não foi identificado um sistema de análise ou telemetria controlado pelo aplicativo. Os diagnósticos do Rust são enviados para `stderr`; o sistema operacional ou um processo supervisor pode capturá-los. Alguns quadros do protocolo são sanitizados antes de serem registrados, mas revise os logs para remover identificadores de conta ou dados sensíveis antes de compartilhá-los.
 
+O código revisado não implementa venda de dados nem um serviço próprio de coleta de dados pessoais. Isso descreve apenas o comportamento observado no aplicativo; não representa uma garantia sobre o jogo, o Brave, fontes de recursos, serviços remotos ou o sistema operacional. Não envie cookies, tokens, sessões autenticadas, perfis do navegador, bancos SQLite reais ou logs brutos em relatos públicos.
+
 ## Painel de desenvolvimento opcional
 
-O recurso `mobile-local-server` é apenas para depuração e escuta em `127.0.0.1:1421`; ele fornece dados locais do painel/API ao frontend de desenvolvimento. Um auxiliar de desenvolvimento separado pode vincular o Vite a uma interface ZeroTier selecionada. Isso torna o painel de desenvolvimento acessível a dispositivos que alcançam essa interface; a verificação de `Origin` não é autenticação. Essas ferramentas não se destinam à produção nem a redes não confiáveis.
+O recurso `mobile-local-server` é apenas para depuração e escuta em `127.0.0.1:1421`; ele fornece dados locais do painel/API ao frontend de desenvolvimento. A variável opcional `POKEIDLE_MOBILE_ZEROTIER_IP` ajusta a lista de hosts permitidos e a validação de `Origin` do Vite, mas o servidor Vite continua vinculado a `127.0.0.1:1420` no código deste repositório. A verificação de `Origin` não é autenticação. Esses recursos são de desenvolvimento e não fazem parte do build comunitário empacotado.
 
 ## Como apagar os dados locais
 
@@ -24,4 +26,4 @@ Feche o aplicativo e os processos Brave gerenciados antes de fazer uma limpeza m
 
 ## Atualizações deste aviso
 
-Se o armazenamento ou o comportamento de rede mudar, atualize este aviso antes de publicar uma nova versão. Este texto não descreve as práticas independentes de dados do Pokeidle, Brave, ZeroTier ou de outros serviços. O auxiliar de desenvolvimento ZeroTier é opcional e não é necessário para compilar ou executar a edição comunitária empacotada.
+Se o armazenamento ou o comportamento de rede mudar, atualize este aviso antes de publicar uma nova versão. Este texto não descreve as práticas independentes de dados do Pokeidle, Brave ou de outros serviços. A configuração opcional de desenvolvimento ZeroTier não é necessária para compilar ou executar a edição comunitária empacotada.
