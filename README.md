@@ -2,7 +2,17 @@
 
 O Pokeidle Manager é um aplicativo complementar não oficial para desktop, feito para organizar várias contas do Pokeidle e consultar informações de conta, hunts, inventário, automações e mercado. O projeto não é afiliado, endossado nem operado pelo jogo Pokeidle ou pelos detentores de seus direitos.
 
-Este repositório é o código-fonte oficial da edição comunitária do projeto. Downloads oficiais e canais de suporte ainda não foram estabelecidos; compilações feitas a partir deste código são compilações comunitárias, não lançamentos oficiais do jogo.
+Este repositório é o código-fonte oficial da edição comunitária do Pokeidle Manager.
+
+## Download
+
+A versão estável **v0.1.0 ainda não foi publicada**. A versão candidata pública atual para testes é **v0.1.0-rc.1 (RC1)**.
+
+Baixe o aplicativo exclusivamente pela [página oficial da RC1](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.1) ou pela página de [GitHub Releases](https://github.com/DiuleJR/pokeidle-manager/releases). Para a maioria dos usuários, recomendamos o instalador NSIS:
+
+`Pokeidle.Manager_0.1.0_x64-setup.exe`
+
+O MSI e o arquivo `SHA256SUMS.txt` para verificação de integridade também estão disponíveis na página da RC1. Esta é uma pré-release para testes e pode conter bugs; não a confunda com uma versão estável.
 
 ## Compilar localmente
 
@@ -19,13 +29,13 @@ A edição comunitária é compilada sem um serviço comercial de licenciamento.
 
 ## Instalação no Windows
 
-O aplicativo é destinado ao Windows 10 e Windows 11. A v0.1.0 ainda está em preparação e validação: neste momento não há instalador oficial para baixar. Quando a versão for aprovada e publicada, os downloads oficiais serão disponibilizados exclusivamente em [GitHub Releases](https://github.com/DiuleJR/pokeidle-manager/releases). Não use instaladores enviados por canais ou links não verificados.
+O aplicativo é destinado ao Windows 10 e Windows 11. Use somente os instaladores publicados na página oficial da [RC1](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.1); não use instaladores enviados por canais ou links não verificados.
 
 O instalador não inclui o Brave. Para entrar ou reabrir uma conta no modo Browser, instale o Brave pelo [site oficial](https://brave.com/pt-br/download/); o Manager não baixa nem distribui o navegador.
 
 Os dados do Manager e os perfis do Brave ficam no computador. Perfis podem conter cookies e sessões autenticadas. Nunca envie cookies, tokens, perfis do navegador, bancos SQLite reais, credenciais ou logs brutos em Issues; consulte [Privacidade](PRIVACY.md) e [Política de segurança](SECURITY.md) antes de relatar um problema.
 
-Os instaladores gerados nesta preparação não têm assinatura digital. O Windows SmartScreen pode exibir avisos diferentes conforme o computador e a reputação do arquivo; confira sempre a origem do download antes de decidir como prosseguir.
+Os instaladores da RC1 ainda não possuem assinatura digital. O Windows SmartScreen pode exibir um aviso; confira a origem do arquivo e baixe-o somente pela página oficial de Releases.
 
 ## Requisito de navegador
 
@@ -37,9 +47,12 @@ O aplicativo armazena o banco de dados SQLite, os recursos em cache e os perfis 
 
 O aplicativo se conecta ao site e aos serviços do Pokeidle para obter dados do jogo e manter sessões, e pode buscar recursos durante a execução. As recomendações de hunt usam um script de referência comunitário obtido de `guiapokeidlehardtocapture.site`; o repositório aponta para a fonte, mas não redistribui esse script. Sprites do jogo e artes de terceiros sem autorização de redistribuição não são incluídos. Consulte [Ativos e ícones](docs/ASSETS.md).
 
-## Contribuição e segurança
+## Comunidade e suporte
 
-Leia [Como contribuir](CONTRIBUTING.md), o [Código de Conduta](CODE_OF_CONDUCT.md), a [Política de Segurança](SECURITY.md) e [Marcas e afiliação](TRADEMARKS.md). Os canais oficiais de contato e suporte ainda não foram estabelecidos; não presuma nem use canais não oficiais como se fossem autorizados pelo projeto.
+- Discord oficial: [discord.gg/Hup5P6jD7](https://discord.gg/Hup5P6jD7)
+- GitHub oficial: [DiuleJR/pokeidle-manager](https://github.com/DiuleJR/pokeidle-manager)
+
+Use esses canais para dúvidas, feedback, testes, sugestões e relatos de bugs. **Não publique cookies, tokens, credenciais, perfis do Brave, bancos SQLite reais, sessões autenticadas ou logs brutos com dados sensíveis.** Consulte [Privacidade](PRIVACY.md) e [Política de segurança](SECURITY.md) antes de relatar um problema. Para contribuir, leia também [Como contribuir](CONTRIBUTING.md), o [Código de Conduta](CODE_OF_CONDUCT.md) e [Marcas e afiliação](TRADEMARKS.md).
 
 ## Licença
 
