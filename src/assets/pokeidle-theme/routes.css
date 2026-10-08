@@ -5,7 +5,8 @@
 .account-detail-route .account-detail-page,
 .inventory-page,
 .market-page,
-.page.settings {
+.page.settings,
+.page.community-page {
   color: var(--game-text);
 }
 
@@ -607,44 +608,44 @@
 }
 
 .page.settings .startup-concurrency-heading h2,
-.page.settings .community-project-heading h2,
+.page.community-page .community-project-heading h2,
 .page.settings .protocol-inspector h2 {
   color: var(--game-text);
 }
 
 .page.settings .startup-concurrency-heading p,
 .page.settings .startup-concurrency-note,
-.page.settings .community-project-card .muted {
+.page.community-page .community-project-card .muted {
   color: var(--game-text-soft);
 }
 
-.page.settings .community-project-heading {
+.page.community-page .community-project-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
 }
 
-.page.settings .community-project-heading h2 {
+.page.community-page .community-project-heading h2 {
   margin: 0 0 4px;
   font-size: 1.25rem;
 }
 
-.page.settings .community-project-heading p { margin: 0; }
+.page.community-page .community-project-heading p { margin: 0; }
 
-.page.settings .community-project-version {
+.page.community-page .community-project-version {
   color: var(--game-text-soft);
   font-size: 0.82rem;
 }
 
-.page.settings .community-project-status {
+.page.community-page .community-project-status {
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
   margin: 17px 0 14px;
 }
 
-.page.settings .community-chip {
+.page.community-page .community-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -656,133 +657,150 @@
   font-weight: 700;
 }
 
-.page.settings .community-chip > span {
+.page.community-page .community-chip > span {
   font-size: 0.76rem;
 }
 
-.page.settings .community-chip-free {
+.page.community-page .community-chip-free {
   border-color: #387568;
   background: #153831;
   color: #b6e8d7;
 }
 
-.page.settings .community-chip-license {
+.page.community-page .community-chip-license {
   border-color: #765044;
   background: #38232c;
   color: #e0bca8;
 }
 
-.page.settings .community-chip-community {
+.page.community-page .community-chip-community {
   border-color: #346b6d;
   background: #183438;
   color: #b8e2df;
 }
 
-.page.settings .community-project-panels {
+.page.community-page .community-project-panels {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 0.92fr) minmax(0, 1.55fr);
   gap: 10px;
   align-items: stretch;
 }
 
-.page.settings .community-link-card,
-.page.settings .community-pix-panel {
+.page.community-page .community-link-card,
+.page.community-page .community-pix-panel {
   min-width: 0;
   border: 1px solid #73443f;
   border-radius: 10px;
   background: linear-gradient(145deg, #3d2632, #281c2a);
 }
 
-.page.settings .community-link-card {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 14px;
-  align-content: start;
-  align-items: start;
-  gap: 9px;
-  padding: 12px 10px;
+.page.community-page .community-link-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 13px 12px 11px;
   color: var(--game-text);
   text-align: left;
   cursor: pointer;
   transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
 }
 
-.page.settings .community-link-card:hover {
+.page.community-page .community-link-card:hover {
   transform: translateY(-1px);
   border-color: #a86a51;
   background: linear-gradient(145deg, #4a2a39, #30202f);
 }
 
-.page.settings .community-link-card:focus-visible,
-.page.settings .community-pix-copy-button:focus-visible {
+.page.community-page .community-link-card:focus-visible,
+.page.community-page .community-pix-copy-button:focus-visible {
   outline: 2px solid #79c9b7;
   outline-offset: 3px;
 }
 
-.page.settings .community-link-icon {
+.page.community-page .community-link-icon {
   display: grid;
-  width: 34px;
-  height: 34px;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
   place-items: center;
   border: 1px solid #835443;
-  border-radius: 9px;
+  border-radius: 12px;
   background: #271c29;
-  color: #d7a77f;
+  color: #ead2b1;
 }
 
-.page.settings .community-link-icon-discord {
+.page.community-page .community-link-icon-github {
+  border-color: #795842;
+  color: #e6c79f;
+}
+
+.page.community-page .community-link-icon-discord {
   border-color: #456e76;
-  color: #94d2ce;
+  background: #1e3037;
+  color: #a4d8d7;
 }
 
-.page.settings .community-link-icon svg {
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
+.page.community-page .community-link-icon svg {
+  width: 25px;
+  height: 25px;
+  fill: currentColor;
 }
 
-.page.settings .community-link-copy {
+.page.community-page .community-link-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page.community-page .community-link-copy {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 3px;
 }
 
-.page.settings .community-link-copy strong {
+.page.community-page .community-link-kicker {
+  color: #b99b87;
+  font: 0.52rem/1.3 'DM Mono', monospace;
+  letter-spacing: 0.08em;
+}
+
+.page.community-page .community-link-copy strong {
   color: #f4dfc2;
-  font-size: 0.86rem;
+  font-size: 1.03rem;
 }
 
-.page.settings .community-link-copy > span {
-  color: var(--game-text-soft);
-  font-size: 0.7rem;
-  line-height: 1.35;
-}
-
-.page.settings .community-link-copy small {
+.page.community-page .community-link-destination {
   overflow-wrap: anywhere;
-  color: #bd9e94;
-  font: 0.58rem/1.35 'DM Mono', monospace;
+  color: #c2a999;
+  font: 0.61rem/1.4 'DM Mono', monospace;
 }
 
-.page.settings .community-link-arrow {
-  color: #9b7769;
+.page.community-page .community-link-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 9px;
+  border-top: 1px solid #68423d;
+  color: #e2c6a5;
+  font-size: 0.71rem;
+  font-weight: 800;
 }
 
-.page.settings .community-link-arrow svg {
+.page.community-page .community-link-cta svg {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   fill: none;
-  stroke: currentColor;
+  stroke: #9dcfc3;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.4;
+  stroke-width: 1.6;
 }
 
-.page.settings .community-pix-panel {
+.page.community-page .community-pix-panel {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -791,7 +809,7 @@
   background: linear-gradient(145deg, #1d3637, #25232f 82%);
 }
 
-.page.settings .community-pix-qr-frame {
+.page.community-page .community-pix-qr-frame {
   display: grid;
   flex: 0 0 auto;
   width: 120px;
@@ -802,7 +820,7 @@
   background: #fffaf2;
 }
 
-.page.settings .community-pix-qr {
+.page.community-page .community-pix-qr {
   display: block;
   width: 112px;
   height: 112px;
@@ -810,39 +828,39 @@
   shape-rendering: crispEdges;
 }
 
-.page.settings .community-pix-copy {
+.page.community-page .community-pix-copy {
   display: grid;
   justify-items: start;
   gap: 5px;
   min-width: 0;
 }
 
-.page.settings .community-pix-eyebrow {
+.page.community-page .community-pix-eyebrow {
   margin: 0;
   color: #98d3c6;
   font: 0.58rem/1.3 'DM Mono', monospace;
   letter-spacing: 0.08em;
 }
 
-.page.settings .community-pix-copy h3 {
+.page.community-page .community-pix-copy h3 {
   margin: 0;
   color: #f2dfc6;
   font-size: 0.88rem;
 }
 
-.page.settings .community-pix-copy > p:not(.community-pix-eyebrow) {
+.page.community-page .community-pix-copy > p:not(.community-pix-eyebrow) {
   margin: 0;
   color: #b5c9c2;
   font-size: 0.72rem;
 }
 
-.page.settings .community-pix-note {
+.page.community-page .community-pix-note {
   color: #9ab4ae;
   font-size: 0.62rem;
   line-height: 1.3;
 }
 
-.page.settings .community-pix-copy-button {
+.page.community-page .community-pix-copy-button {
   margin-top: 3px;
   padding: 7px 10px;
   border-color: #4a867b;
@@ -851,12 +869,12 @@
   font-size: 0.68rem;
 }
 
-.page.settings .community-pix-copy-button:hover:not(:disabled) {
+.page.community-page .community-pix-copy-button:hover:not(:disabled) {
   border-color: #75baa5;
   background: #2d5d54;
 }
 
-.page.settings .community-pix-copy-button.is-copied {
+.page.community-page .community-pix-copy-button.is-copied {
   opacity: 1;
   cursor: default;
   animation: community-copy-feedback 1.8s ease-out;
@@ -867,7 +885,7 @@
   35% { filter: brightness(1.25); }
 }
 
-.page.settings .community-project-feedback {
+.page.community-page .community-project-feedback {
   min-height: 1.1em;
   margin: 8px 0 0;
   color: #f0ad9e;
@@ -875,17 +893,17 @@
 }
 
 @media (max-width: 900px) {
-  .page.settings .community-project-panels {
+  .page.community-page .community-project-panels {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .page.settings .community-pix-panel {
+  .page.community-page .community-pix-panel {
     justify-content: flex-start;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page.settings .community-pix-copy-button.is-copied {
+  .page.community-page .community-pix-copy-button.is-copied {
     animation-duration: 1ms;
   }
 }
@@ -1098,7 +1116,8 @@
 
 .inventory-page > .shared-page-header,
 .market-page > .shared-page-header,
-.page.settings > .shared-page-header {
+.page.settings > .shared-page-header,
+.page.community-page > .shared-page-header {
   margin: -24px -30px 16px;
 }
 
@@ -1108,6 +1127,42 @@
 
 .page.settings {
   max-width: none;
+}
+
+.page.settings.page-scroll {
+  padding: 24px 30px;
+}
+
+.page.community-page {
+  max-width: none;
+}
+
+.page.community-page.page-scroll {
+  padding: 24px 30px;
+}
+
+.page.community-page > .shared-page-header {
+  margin: -24px -30px 16px;
+}
+
+.community-project-wrap {
+  width: min(100%, 1120px);
+  margin-inline: auto;
+}
+
+.page.community-page .community-project-card {
+  padding: 18px 20px 16px;
+  border-color: #965541;
+  border-radius: var(--game-radius-panel);
+  background: linear-gradient(155deg, #512a35, #34202e 78%);
+  box-shadow: var(--game-shadow-panel);
+  color: var(--game-text);
+}
+
+@media (max-width: 760px) {
+  .page.community-page .community-project-card {
+    padding: 14px;
+  }
 }
 
 .page.settings > .card {
@@ -1149,7 +1204,8 @@
 
   .inventory-page > .shared-page-header,
   .market-page > .shared-page-header,
-  .page.settings > .shared-page-header {
+  .page.settings > .shared-page-header,
+  .page.community-page > .shared-page-header {
     margin-top: -20px;
     margin-inline: -20px;
   }

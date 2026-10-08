@@ -31,6 +31,7 @@ import menuAutomationIcon from './assets/pokeidle-theme/backgrounds/menu-automat
 import menuInventoryIcon from './assets/pokeidle-theme/backgrounds/menu-inventory.png'
 import menuMarketIcon from './assets/pokeidle-theme/backgrounds/menu-market.png'
 import menuSettingsIcon from './assets/pokeidle-theme/backgrounds/menu-settings.png'
+import menuCommunityIcon from './assets/pokeidle-theme/backgrounds/menu-community.png'
 import {
   aggregateItems,
   depotPokemon,
@@ -59,7 +60,15 @@ import {
   type LiveRuntimeSnapshot,
 } from './real-account'
 
-const pages: Page[] = ['Dashboard', 'Onde Caçar', 'Automações', 'Inventários', 'Mercado', 'Configurações']
+const pages: Page[] = [
+  'Dashboard',
+  'Onde Caçar',
+  'Automações',
+  'Inventários',
+  'Mercado',
+  'Configurações',
+  'Comunidade',
+]
 type BrowserAccountCommand = 'open_account_browser' | 'reconnect_browser_control' | 'login_account'
 type BrowserIntent =
   | { kind: 'add' }
@@ -167,6 +176,7 @@ const sidebarNavIcons: Record<Page, string> = {
   Mercado: menuMarketIcon,
   'Onde Caçar': menuHuntIcon,
   Configurações: menuSettingsIcon,
+  Comunidade: menuCommunityIcon,
 }
 
 function SidebarNavIcon({ page }: { page: Page }) {
@@ -3436,7 +3446,11 @@ function Settings() {
     [4, 'Mais rápido · maior pico'],
   ] as const
   return (
-    <main className="page settings">
+    <main
+      className="page page-scroll settings"
+      tabIndex={0}
+      aria-label="Conteúdo de Configurações"
+    >
       <PageHeader title="Configurações" />
       <Card className="startup-concurrency-card">
         <div className="startup-concurrency-heading">
@@ -3462,7 +3476,6 @@ function Settings() {
         </div>
         <p className="startup-concurrency-note">Aplicado na próxima inicialização.</p>
       </Card>
-      <CommunityProjectCard />
       <Card>
         <Switch
           label="Minimizar para bandeja"
@@ -3496,6 +3509,21 @@ function Settings() {
           Pokeidle Manager {COMMUNITY.version} · Iniciar com Windows permanece preparado para uma próxima versão.
         </p>
       </Card>
+    </main>
+  )
+}
+
+function Community() {
+  return (
+    <main
+      className="page page-scroll community-page"
+      tabIndex={0}
+      aria-label="Conteúdo da Comunidade"
+    >
+      <PageHeader title="Comunidade" />
+      <div className="community-project-wrap">
+        <CommunityProjectCard />
+      </div>
     </main>
   )
 }
@@ -3967,6 +3995,8 @@ export default function App() {
     <Market />
   ) : page === 'Onde Caçar' ? (
     <WhereToHunt />
+  ) : page === 'Comunidade' ? (
+    <Community />
   ) : (
     <Settings />
   )

@@ -311,4 +311,11 @@ export interface AppSettings {
   startupBrowserConcurrency: number
 }
 
-export type Page = 'Dashboard' | 'Automações' | 'Inventários' | 'Mercado' | 'Onde Caçar' | 'Configurações'
+export type Page =
+  | 'Dashboard'
+  | 'Automações'
+  | 'Inventários'
+  | 'Mercado'
+  | 'Onde Caçar'
+  | 'Configurações'
+  | 'Comunidade'

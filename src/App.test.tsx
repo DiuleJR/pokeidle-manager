@@ -218,19 +218,55 @@ describe('Pokeidle Manager UI', () => {
     expect(host.textContent).toContain('Nenhuma conta cadastrada')
   })
 
-  it('describes the free Community build in Settings without activation controls', () => {
+  it('keeps Settings focused on application behavior without the Community card', () => {
     act(() => useAppStore.getState().setPage('Configurações'))
     const host = render()
 
+    expect(host.querySelector('.community-project-card')).toBeNull()
+    expect(host.textContent).not.toContain('PROJETO OPEN SOURCE')
+    expect(host.textContent).toContain('Contas simultâneas')
+    expect(host.textContent).toContain('Minimizar para bandeja')
+    expect(host.textContent).toContain('Modo Demonstração')
+    expect(host.textContent).toContain('Modo Desenvolvedor')
+    expect(host.textContent).toContain('Abrir pasta de logs')
+    const settingsContent = host.querySelector<HTMLElement>('main.page.settings.page-scroll')
+    expect(settingsContent?.getAttribute('aria-label')).toBe('Conteúdo de Configurações')
+    expect(settingsContent?.tabIndex).toBe(0)
+    expect(host.querySelector('input[type="password"]')).toBeNull()
+    expect([...host.querySelectorAll('button')].some((button) => /ativar licença|remover licença/i.test(button.textContent ?? ''))).toBe(false)
+  })
+
+  it('opens the single Community card from its local sidebar icon and route', () => {
+    const host = render()
+    const communityButton = [...host.querySelectorAll<HTMLButtonElement>('nav button')].find(
+      (button) => button.querySelector('.sidebar-nav-label')?.textContent === 'Comunidade',
+    )!
+
+    expect(communityButton.querySelector('.sidebar-nav-icon img')?.getAttribute('src')).toContain(
+      'menu-community',
+    )
+    expect(communityButton.querySelector('.sidebar-nav-icon img')?.getAttribute('src')).not.toMatch(
+      /^[a-z]+:\/\//i,
+    )
+
+    act(() => communityButton.click())
+
+    expect(communityButton.classList.contains('active')).toBe(true)
+    expect(host.querySelector('main.community-page .shared-page-header h1')?.textContent).toBe(
+      'Comunidade',
+    )
+    expect(host.querySelectorAll('.community-project-card')).toHaveLength(1)
     expect(host.textContent).toContain('PROJETO OPEN SOURCE')
     expect(host.textContent).toContain('Community Build')
     expect(host.textContent).toContain('Gratuito')
     expect(host.textContent).toContain('GPL-3.0-only')
-    expect(host.textContent).toContain('Entrar na comunidade')
+    expect(host.textContent).toContain('Sem ativação comercial')
     expect(host.textContent).toContain('Apoio voluntário')
-    expect(host.textContent).not.toContain('PIX em breve')
-    expect(host.querySelector('input[type="password"]')).toBeNull()
-    expect([...host.querySelectorAll('button')].some((button) => /ativar licença|remover licença/i.test(button.textContent ?? ''))).toBe(false)
+    expect(host.textContent).toContain('Copiar PIX')
+    expect(host.querySelector('.community-pix-qr')).not.toBeNull()
+    expect(host.querySelector('.community-page')?.getAttribute('aria-label')).toBe(
+      'Conteúdo da Comunidade',
+    )
   })
 
   it('keeps a verified catalog sprite when sparse Market metadata omits its icon', () => {
@@ -265,7 +301,7 @@ describe('Pokeidle Manager UI', () => {
     expect(host.textContent).toContain('Dashboard')
     expect(host.textContent).toContain('Carregando contas persistidas...')
   })
-  it.each(['Dashboard', 'Automações', 'Inventários', 'Mercado', 'Configurações'] as const)(
+  it.each(['Dashboard', 'Automações', 'Inventários', 'Mercado', 'Configurações', 'Comunidade'] as const)(
     'uses the shared CSS title plaque on the %s tab',
     (page) => {
       act(() => useAppStore.getState().setPage(page))
@@ -625,7 +661,7 @@ describe('Pokeidle Manager UI', () => {
 
     expect(host.querySelector('.shared-page-header-copy .eyebrow')).toBeNull()
     expect(host.querySelector('.brand .sidebar-brand-art')?.getAttribute('alt')).toBe('Pokeidle Manager')
-    expect(host.querySelectorAll('nav .sidebar-nav-icon img')).toHaveLength(6)
+    expect(host.querySelectorAll('nav .sidebar-nav-icon img')).toHaveLength(7)
     expect(host.textContent).not.toContain('Sua farm em uma só visão.')
     expect(accountCard.querySelector('.premium-hp-row')?.textContent).toContain('%')
     expect(accountCard.querySelector('.premium-hp-row small')).toBeNull()

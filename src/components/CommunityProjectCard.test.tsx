@@ -45,6 +45,13 @@ describe('CommunityProjectCard', () => {
       '[aria-label="Entrar na comunidade Pokeidle Manager no Discord"]',
     )!
 
+    expect(github.querySelector('.community-link-icon-github path')?.getAttribute('d')).toContain(
+      'M12 .297',
+    )
+    expect(discord.querySelector('.community-link-icon-discord path')?.getAttribute('d')).toContain(
+      'M20.317',
+    )
+
     await act(async () => {
       github.click()
       discord.click()
