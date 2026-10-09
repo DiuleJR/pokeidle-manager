@@ -10,6 +10,7 @@ import { ItemAsset, PokemonAsset } from './inventory/asset-components'
 import { ensureAccountDomain } from './account-domains'
 import { mergeMarketCatalog } from './inventory/market-catalog'
 import { formatHuntElapsed } from './dashboard-time'
+import { bonusMultiplier } from './hunts/calculator'
 import { POKEMON_GRID_ROW_HEIGHT, pokemonGridWindow } from './inventory/virtual-grid'
 import { WhereToHunt } from './hunts/WhereToHunt'
 import browserModeIcon from './assets/pokeidle-theme/backgrounds/icon-browser.png'
@@ -21,6 +22,11 @@ import accountLevelIcon from './assets/pokeidle-theme/backgrounds/icon-level.png
 import gameGoldIcon from './assets/pokeidle-theme/backgrounds/icon-gold.png'
 import diamondCurrencyIcon from './assets/pokeidle-theme/backgrounds/icon-diamond.png'
 import vipIcon from './assets/pokeidle-theme/backgrounds/icon-vip.svg'
+import guildBonusIcon from './assets/pokeidle-theme/backgrounds/where-hunt-guild.png'
+import guildBoostIcon from './assets/pokeidle-theme/backgrounds/where-hunt-guild-boost.png'
+import twitchBonusIcon from './assets/pokeidle-theme/backgrounds/icon-twitch.png'
+import eventBonusIcon from './assets/ui-icons/event.svg'
+import clockIcon from './assets/ui-icons/clock.svg'
 import sidebarLogo from './assets/pokeidle-theme/backgrounds/sidebar-brand.png'
 import sidebarWallpaper from './assets/pokeidle-theme/backgrounds/sidebar-wallpaper.png'
 import sharedHeaderScenery from './assets/pokeidle-theme/backgrounds/shared-header-scenery.png'
@@ -55,9 +61,11 @@ import type {
 } from './types'
 import {
   accountFromLive,
+  accountFromRuntime,
   type IntegrationDiagnostic,
   type IntegrationLiveSnapshot,
   type LiveRuntimeSnapshot,
+  type RuntimeSnapshot,
 } from './real-account'
 
 const pages: Page[] = [
@@ -218,6 +226,7 @@ const automationDescriptions: Record<AutomationKind, string> = {
   autoBuyBall: 'Repõe as Balls selecionadas.',
 }
 const format = new Intl.NumberFormat('pt-BR')
+const percentFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 const MARKET_SNAPSHOT_REFRESH_MS = 10_000
 const MARKET_HISTORY_ROW_HEIGHT = 60
 const startupDebug = import.meta.env.DEV && import.meta.env.MODE !== 'test'
@@ -395,6 +404,34 @@ function AccountCard({
   const potion = selectedItemAsInventory(account, 'potion')
   const ball = selectedItemAsInventory(account, 'ball')
   const huntElapsed = formatHuntElapsed(account.huntStartedAtMs, nowMs)
+  const totalXpBonusPercent = Math.max(0, (bonusMultiplier(account, true) - 1) * 100)
+  const activeXpBonusIcons = [
+    { key: 'vip', label: 'VIP', active: Boolean(account.vip), icon: vipIcon },
+    {
+      key: 'guild',
+      label: `Guilda +${percentFormat.format(account.xpBonus?.guildRankPct ?? 0)}%`,
+      active: (account.xpBonus?.guildRankPct ?? 0) > 0,
+      icon: guildBonusIcon,
+    },
+    {
+      key: 'guild-boost',
+      label: 'Boost da guilda +10%',
+      active: Boolean(account.xpBonus?.guildBoostActive),
+      icon: guildBoostIcon,
+    },
+    {
+      key: 'twitch',
+      label: `Twitch +${percentFormat.format(account.xpBonus?.twitchPct ?? 0)}%`,
+      active: (account.xpBonus?.twitchPct ?? 0) > 0,
+      icon: twitchBonusIcon,
+    },
+    {
+      key: 'event',
+      label: `Evento +${percentFormat.format(account.xpBonus?.eventTrainerPct ?? 0)}%`,
+      active: (account.xpBonus?.eventTrainerPct ?? 0) > 0,
+      icon: eventBonusIcon,
+    },
+  ].filter((bonus) => bonus.active)
   return (
     <Card className="account-card premium-account-card clickable" data-status={account.status}>
       <button
@@ -406,8 +443,24 @@ function AccountCard({
         <span className="avatar" style={{ background: account.color }}>
           {account.nick[0]}
         </span>
-        <div>
-          <h3>{account.nick}</h3>
+        <div className="premium-account-identity">
+          <div className="premium-account-name-row">
+            <h3>{account.nick}</h3>
+            <span
+              className="premium-account-xp-bonus"
+              aria-label={`Bônus total de XP: +${percentFormat.format(totalXpBonusPercent)}%`}
+              title="Bônus conhecidos; os multiplicadores ativos são aplicados sobre o XP."
+            >
+              XP +{percentFormat.format(totalXpBonusPercent)}%
+            </span>
+            {activeXpBonusIcons.length > 0 && (
+              <span className="premium-account-xp-icons" aria-label="Bônus ativos">
+                {activeXpBonusIcons.map((bonus) => (
+                  <img key={bonus.key} src={bonus.icon} alt={bonus.label} title={bonus.label} />
+                ))}
+              </span>
+            )}
+          </div>
           <div className="premium-account-badges">
             <span className="premium-status">
               <i />
@@ -793,6 +846,8 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
   browserActionBusy: boolean
 }) {
   const back = useAppStore((state) => state.closeAccountDetail)
+  const setRealAccounts = useAppStore((state) => state.setRealAccounts)
+  const realAccounts = useAppStore((state) => state.real.accounts)
   const isDesktop = '__TAURI_INTERNALS__' in window
   const depotRevision = account.domainRevisions?.depot
   const hasWildPokemon = Boolean(account.wildPokemon)
@@ -805,6 +860,17 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
   const catalog = useGameItemCatalog()
   const [transferError, setTransferError] = useState<string | null>(null)
   const [confirmRemoval, setConfirmRemoval] = useState(false)
+  const [confirmSessionReset, setConfirmSessionReset] = useState(false)
+  const [resettingSession, setResettingSession] = useState(false)
+  const [sessionResetError, setSessionResetError] = useState<string | null>(null)
+  const [sessionNowMs, setSessionNowMs] = useState(() => Date.now())
+  const sessionStartedAtMs = account.huntSession?.startedAtMs
+  useEffect(() => {
+    if (sessionStartedAtMs == null) return
+    setSessionNowMs(Date.now())
+    const timer = window.setInterval(() => setSessionNowMs(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [sessionStartedAtMs])
   const transferring = account.mode === 'transitioning'
   const reconnecting = transferring && account.runtime === 'reconnecting'
   const transfer = (
@@ -827,6 +893,22 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
       .then(() => back())
       .catch((error: unknown) => setTransferError(String(error)))
   }
+  const resetSession = async () => {
+    setResettingSession(true)
+    setSessionResetError(null)
+    try {
+      const snapshot = await invoke<RuntimeSnapshot>('reset_hunt_session', {
+        accountId: account.id,
+      })
+      const updated = accountFromRuntime(snapshot)
+      setRealAccounts(realAccounts.map((item) => (item.id === updated.id ? updated : item)))
+      setConfirmSessionReset(false)
+    } catch (error) {
+      setSessionResetError(String(error))
+    } finally {
+      setResettingSession(false)
+    }
+  }
   const hp = account.maxHp ? Math.round((account.hp / account.maxHp) * 100) : 0
   const levelStart = account.xpLevel
   const levelXp = Math.max(0, account.xp - levelStart)
@@ -842,6 +924,30 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
   const capturesPerHour = account.onlineSeconds
     ? Math.round((account.captures * 3600) / account.onlineSeconds)
     : 0
+  const huntSession = account.huntSession
+  const rareDropGroups = [
+    { label: 'Boss Token', match: ['boss token'], fallbackAssetKey: undefined },
+    { label: 'Chave', match: ['chave', 'key'], fallbackAssetKey: '70011' },
+    { label: 'Shiny Stone', match: ['shiny stone'], fallbackAssetKey: '70012' },
+    { label: 'Bicicleta', match: ['bicicleta', 'bicycle'], fallbackAssetKey: '70013' },
+  ].map(({ label, match, fallbackAssetKey }) => {
+    const quantity = Object.entries(huntSession?.drops ?? {}).reduce((total, [name, count]) => {
+      const normalizedName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      return match.some((term) => normalizedName.includes(term)) ? total + count : total
+    }, 0)
+    const catalogItem = Object.values(catalog.items).find((item) => {
+      const normalizedName = item.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      return match.some((term) => normalizedName.includes(term)) && item.assetPath
+    })
+    const assetKey = catalogItem ? String(catalogItem.id) : fallbackAssetKey
+    return {
+      label,
+      quantity,
+      item: assetKey
+        ? { id: assetKey, assetKey, name: label, quantity, category: 'other' as const }
+        : null,
+    }
+  })
   const vipLabel =
     account.vip === true
       ? `Ativo${account.vipExpiresAt ? ` até ${new Date(account.vipExpiresAt).toLocaleString('pt-BR')}` : ''}`
@@ -850,38 +956,6 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
         : account.vipDataAvailable
           ? 'Dados recebidos'
           : '—'
-  const sessionEvents = [
-    ...(account.wildPokemon
-      ? [
-          {
-            icon: 'farm' as const,
-            description: `Em combate com ${account.wildPokemon.name}`,
-            time: 'Agora',
-          },
-        ]
-      : []),
-    ...(account.goldGained > 0
-      ? [
-          {
-            icon: 'gold' as const,
-            description: `+${format.format(account.goldGained)} Gold obtido`,
-            time: 'Sessão',
-          },
-        ]
-      : []),
-    ...(account.xpGained > 0
-      ? [
-          {
-            icon: 'metrics' as const,
-            description: `+${format.format(account.xpGained)} XP obtido`,
-            time: 'Sessão',
-          },
-        ]
-      : []),
-    ...account.drops
-      .slice(0, 3)
-      .map((drop) => ({ icon: 'drop' as const, description: drop, time: 'Sessão' })),
-  ]
   return (
     <main className="account-detail-route">
       <div
@@ -1116,7 +1190,7 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
               </div>
             </Card>
             <Card className="detail-premium-card detail-metrics-card">
-              <DetailCardHeading icon="metrics">Métricas de rendimento</DetailCardHeading>
+              <DetailCardHeading icon="metrics">Métricas da hunt</DetailCardHeading>
               <div className="detail-metrics-grid">
                 {[
                   ['XP/h', format.format(account.xpPerHour), 'xp'],
@@ -1154,22 +1228,99 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
                 ))}
               </div>
             </Card>
-            <Card className="detail-premium-card detail-events-card">
-              <DetailCardHeading icon="events">Últimos eventos</DetailCardHeading>
-              <div className="detail-event-list">
-                {sessionEvents.map((event, index) => (
-                  <div key={`${event.description}-${index}`}>
-                    <span className={`detail-event-icon detail-event-icon-${event.icon}`}>
-                      <DetailIcon kind={event.icon} />
-                    </span>
-                    <p>{event.description}</p>
-                    <time>{event.time}</time>
-                  </div>
-                ))}
-                {!sessionEvents.length && (
-                  <p className="detail-empty-state">Sem atividade recente sincronizada.</p>
+            <Card className="detail-premium-card detail-session-card">
+              <header className="detail-card-heading detail-session-heading">
+                <span className="detail-heading-icon">
+                  <DetailIcon kind="metrics" />
+                </span>
+                <h2>Estatísticas da sessão</h2>
+                {huntSession && (
+                  <span
+                    className="detail-session-timer"
+                    aria-label={`Tempo da sessão: ${formatHuntElapsed(huntSession.startedAtMs, sessionNowMs) ?? '00:00'}`}
+                    title="Tempo da sessão"
+                  >
+                    <img src={clockIcon} alt="" aria-hidden="true" />
+                    {formatHuntElapsed(huntSession.startedAtMs, sessionNowMs) ?? '00:00'}
+                  </span>
                 )}
-              </div>
+                {!confirmSessionReset ? (
+                  <Button
+                    className="detail-session-reset"
+                    disabled={!huntSession || resettingSession}
+                    onClick={() => {
+                      setSessionResetError(null)
+                      setConfirmSessionReset(true)
+                    }}
+                  >
+                    Resetar
+                  </Button>
+                ) : (
+                  <span
+                    className="detail-session-confirm"
+                    role="group"
+                    aria-label="Confirmar reset da sessão"
+                  >
+                    <Button
+                      className="detail-session-reset-confirm"
+                      disabled={resettingSession}
+                      onClick={() => void resetSession()}
+                    >
+                      {resettingSession ? 'Resetando…' : 'Confirmar'}
+                    </Button>
+                    <Button
+                      disabled={resettingSession}
+                      onClick={() => setConfirmSessionReset(false)}
+                    >
+                      Cancelar
+                    </Button>
+                  </span>
+                )}
+              </header>
+              {huntSession ? (
+                <>
+                  <section className="detail-session-focus" aria-label="Resumo da sessão">
+                    <div className="detail-session-focus-section">
+                      <h3>Drops raros · Outland</h3>
+                      <div className="detail-session-rare-grid">
+                        {rareDropGroups.map(({ label, quantity, item }) => (
+                          <div className="detail-session-rare-item" key={label}>
+                            <span
+                              className="detail-session-rare-sprite"
+                              data-has-drop={quantity > 0}
+                              aria-hidden="true"
+                            >
+                              {item ? <ItemAsset item={item} catalog={catalog} compact /> : <span>✦</span>}
+                            </span>
+                            <small>{label}</small>
+                            <strong>{format.format(quantity)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="detail-session-focus-section">
+                      <h3>Shiny · Hunt</h3>
+                      <div className="detail-session-shiny-grid">
+                        <div>
+                          <small>Vistos</small>
+                          <strong>{format.format(huntSession.shiniesSeen)}</strong>
+                        </div>
+                        <div>
+                          <small>Capturados</small>
+                          <strong>{format.format(huntSession.shiniesCaptured)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <p className="detail-empty-state detail-session-empty">
+                  Inicie uma hunt para começar uma nova sessão de estatísticas.
+                </p>
+              )}
+              {sessionResetError && (
+                <p className="error-message detail-session-error">{sessionResetError}</p>
+              )}
             </Card>
           </div>
         </section>

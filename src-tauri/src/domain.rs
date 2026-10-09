@@ -299,16 +299,21 @@ pub struct AccountMetrics {
     pub balls_used: BTreeMap<String, u64>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HuntSession {
     pub hunt_slug: String,
     pub started_at_ms: u64,
     pub kills: u64,
     pub captures: u64,
     pub xp_obtained: u64,
+    pub trainer_xp: u64,
+    pub pokemon_xp: u64,
     pub gold_combat: u64,
     pub gold_auto_sale: u64,
     pub drops: BTreeMap<String, u64>,
+    pub balls_used: BTreeMap<String, u64>,
+    pub shinies_seen: u64,
+    pub shinies_captured: u64,
 }
 
 /// Persisted identity and start time for one account's current hunt selection.

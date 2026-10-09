@@ -666,6 +666,22 @@ describe('Pokeidle Manager UI', () => {
     expect(accountCard.querySelector('.premium-hp-row')?.textContent).toContain('%')
     expect(accountCard.querySelector('.premium-hp-row small')).toBeNull()
   })
+  it('shows the multiplicative XP bonus total and only active source icons on Dashboard cards', () => {
+    const account = {
+      ...mockAccounts[0],
+      vip: true,
+      xpBonus: { guildBoostActive: true, twitchPct: 27.5 },
+    }
+    act(() => useAppStore.setState({ real: { accounts: [account] } }))
+    const host = render()
+    const accountCard = host.querySelector('.premium-account-card')!
+    const total = accountCard.querySelector('.premium-account-xp-bonus')!
+    const icons = [...accountCard.querySelectorAll<HTMLImageElement>('.premium-account-xp-icons img')]
+
+    expect(total.textContent).toBe('XP +110,4%')
+    expect(total.getAttribute('aria-label')).toBe('Bônus total de XP: +110,4%')
+    expect(icons.map((icon) => icon.alt)).toEqual(['VIP', 'Boost da guilda +10%', 'Twitch +27,5%'])
+  })
   it('shows the account Gold and Gem balances beside its Hunt', () => {
     act(() => useAppStore.setState({ real: { accounts: [mockAccounts[1]] } }))
     const host = render()
@@ -851,7 +867,9 @@ describe('Pokeidle Manager UI', () => {
       'Voltar ao Dashboard',
     )
     expect(host.textContent).toContain('Pokémon ativo')
-    expect(host.textContent).toContain('Últimos eventos')
+    expect(host.textContent).toContain('Estatísticas da sessão')
+    expect(host.textContent).toContain('Métricas da hunt')
+    expect(host.textContent).not.toContain('Métricas de rendimento')
     expect(host.querySelector('.detail-premium-card h2')?.textContent).toBe('Informações da conta')
     expect(host.querySelectorAll('.detail-account-stat')).toHaveLength(4)
     expect(
@@ -873,6 +891,114 @@ describe('Pokeidle Manager UI', () => {
     act(() => useAppStore.getState().setSetting('mockMode', false))
     expect(useAppStore.getState().real.accounts[0].nick).toBe('Conta Real')
     expect(useAppStore.getState().mock.accounts).toEqual([])
+  })
+  it('shows only rare drops and shiny hunt counts, and resets them on request', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-01T12:00:05.000Z'))
+    const account = {
+      ...mockAccounts[0],
+      id: 'real-session',
+      nick: 'Sessao',
+      huntStartedAtMs: Date.parse('2026-10-01T11:00:00.000Z'),
+      huntSession: {
+        huntSlug: 'ancient_pupitar',
+        startedAtMs: Date.parse('2026-10-01T12:00:00.000Z'),
+        kills: 123,
+        captures: 1,
+        xpObtained: 2_494_252,
+        trainerXp: 2_494_252,
+        pokemonXp: 2_494_252,
+        goldCombat: 104_421,
+        goldAutoSale: 0,
+        drops: {
+          'Bronze Boss Token': 2,
+          'Fragmento de Chave': 4,
+          'Fragmento de Shiny Stone': 5,
+          'Fragmento de Bicicleta': 6,
+          'Small Potion': 999,
+        },
+        ballsUsed: { '4': 119 },
+        shiniesSeen: 3,
+        shiniesCaptured: 1,
+      },
+    }
+    const resetSnapshot = {
+      account: { id: account.id, nick: account.nick, card_color: account.color, status: 'online', mode: 'background' },
+      state: {
+        hunt_slug: 'ancient_pupitar',
+        hunt_started_at_ms: account.huntStartedAtMs,
+        no_centro: false,
+        hunt_session: {
+          hunt_slug: 'ancient_pupitar',
+          started_at_ms: Date.parse('2026-10-01T12:00:05.000Z'),
+          kills: 0,
+          captures: 0,
+          xp_obtained: 0,
+          trainer_xp: 0,
+          pokemon_xp: 0,
+          gold_combat: 0,
+          gold_auto_sale: 0,
+          drops: {},
+          balls_used: {},
+          shinies_seen: 0,
+          shinies_captured: 0,
+        },
+        items: {},
+        balls: {},
+        pokemon: [],
+        automation: { potion_ids: [], ball_ids: [], revive_ids: [] },
+      },
+      metrics: { xp_per_hour: 0, gold_per_hour: 0, kills: 0, captures: 0 },
+    }
+    invokeMock.mockResolvedValue(resetSnapshot)
+    act(() => {
+      useAppStore.setState({ real: { accounts: [account] } })
+      useAppStore.getState().openAccountDetail(account.id)
+    })
+    const host = render()
+    const sessionCard = host.querySelector('.detail-session-card')!
+
+    expect(sessionCard.querySelectorAll('.detail-session-rare-sprite')).toHaveLength(4)
+    expect(
+      [...sessionCard.querySelectorAll<HTMLElement>('.detail-session-rare-sprite')].map(
+        (sprite) => sprite.dataset.hasDrop,
+      ),
+    ).toEqual(['true', 'true', 'true', 'true'])
+    expect(sessionCard.querySelector('.detail-session-timer')?.textContent).toBe('00:05')
+    act(() => vi.advanceTimersByTime(2000))
+    expect(sessionCard.querySelector('.detail-session-timer')?.textContent).toBe('00:07')
+    expect(sessionCard.textContent).toContain('Drops raros · Outland')
+    expect(sessionCard.textContent).toContain('Boss Token2')
+    expect(sessionCard.textContent).toContain('Chave4')
+    expect(sessionCard.textContent).toContain('Shiny Stone5')
+    expect(sessionCard.textContent).toContain('Bicicleta6')
+    expect(sessionCard.textContent).toContain('Shiny · Hunt')
+    expect(sessionCard.textContent).toContain('Vistos3')
+    expect(sessionCard.textContent).toContain('Capturados1')
+    expect(sessionCard.textContent).not.toContain('Small Potion')
+    expect(sessionCard.textContent).not.toContain('Tempo da sessão')
+    expect(sessionCard.textContent).not.toContain('XP treinador')
+    expect(sessionCard.textContent).not.toContain('Gold obtido')
+    expect(sessionCard.textContent).not.toContain('Itens obtidos')
+    expect(host.querySelector('.detail-session-reset')).not.toBeNull()
+    expect(host.textContent).not.toContain('Últimos eventos')
+
+    act(() => host.querySelector<HTMLButtonElement>('.detail-session-reset')!.click())
+    await act(async () => {
+      [...host.querySelectorAll('button')].find((button) => button.textContent === 'Confirmar')!.click()
+      await Promise.resolve()
+    })
+
+    expect(invokeMock).toHaveBeenCalledWith('reset_hunt_session', { accountId: account.id })
+    expect(
+      [...sessionCard.querySelectorAll<HTMLElement>('.detail-session-rare-sprite')].map(
+        (sprite) => sprite.dataset.hasDrop,
+      ),
+    ).toEqual(['false', 'false', 'false', 'false'])
+    expect(sessionCard.textContent).toContain('Boss Token0')
+    expect(sessionCard.textContent).toContain('Vistos0')
+    expect(sessionCard.textContent).toContain('Capturados0')
+    expect(useAppStore.getState().real.accounts[0].huntStartedAtMs).toBe(account.huntStartedAtMs)
   })
   it.each(['background', 'browser', 'transitioning'] as const)(
     'keeps Dashboard as the application route for a real %s account',

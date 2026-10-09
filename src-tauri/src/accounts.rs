@@ -287,7 +287,10 @@ pub struct AccountRuntime {
     /// user changes are persisted by the command that receives the request.
     capture_mode_dirty: bool,
     hunt_timer: Option<HuntTimerState>,
+    hunt_timer_revision: u64,
     hunt_timer_dirty: bool,
+    hunt_session_revision: u64,
+    hunt_session_dirty: bool,
     #[cfg(debug_assertions)]
     validation_read_only: Arc<AtomicBool>,
     #[cfg(debug_assertions)]
@@ -371,7 +374,10 @@ impl AccountRuntime {
             inventory_refresh_pending: false,
             capture_mode_dirty: false,
             hunt_timer: None,
+            hunt_timer_revision: 0,
             hunt_timer_dirty: false,
+            hunt_session_revision: 0,
+            hunt_session_dirty: false,
             #[cfg(debug_assertions)]
             validation_read_only: _validation_read_only,
             #[cfg(debug_assertions)]
@@ -404,22 +410,27 @@ impl AccountRuntime {
                 self.hunt_timer.as_ref().map(|timer| timer.started_at_ms);
             return;
         }
-        let (revision, started_at_ms) =
-            self.hunt_timer
-                .as_ref()
-                .map_or((1, observed_at_ms), |timer| {
-                    (
-                        timer.revision.saturating_add(1),
-                        observed_at_ms.max(timer.started_at_ms.saturating_add(1)),
-                    )
-                });
+        let started_at_ms = self.hunt_timer.as_ref().map_or(observed_at_ms, |timer| {
+            observed_at_ms.max(timer.started_at_ms.saturating_add(1))
+        });
+        let revision = self.hunt_timer_revision.saturating_add(1);
         let timer = HuntTimerState {
             hunt_slug: hunt_slug.to_owned(),
             started_at_ms,
             revision,
         };
         self.state.hunt_started_at_ms = Some(timer.started_at_ms);
+        self.hunt_timer_revision = revision;
         self.hunt_timer = Some(timer);
+        self.hunt_timer_dirty = true;
+    }
+    fn clear_hunt_timer(&mut self) {
+        if self.hunt_timer.is_none() && self.state.hunt_started_at_ms.is_none() {
+            return;
+        }
+        self.hunt_timer_revision = self.hunt_timer_revision.saturating_add(1);
+        self.hunt_timer = None;
+        self.state.hunt_started_at_ms = None;
         self.hunt_timer_dirty = true;
     }
     fn apply_state(&mut self, incoming: RemoteState, initialize_hunt: bool) {
@@ -506,33 +517,40 @@ impl AccountRuntime {
             self.reconcile_hunt_timer(hunt_slug, now_ms());
         }
         if let Some(no_centro) = incoming.no_centro {
+            let was_in_center = self.state.no_centro;
             self.state.no_centro = no_centro;
             if no_centro {
                 self.state.pending_navigation = None;
                 self.navigation_sent_at_ms = None;
+                if !was_in_center {
+                    self.metrics = MetricsEngine::default();
+                    self.clear_hunt_timer();
+                }
             }
         }
         if self.state.no_centro {
-            self.state.hunt_session = None;
             self.state.activity = AccountActivity::PokemonCenter;
-        } else if initialize_hunt {
-            if let Some(hunt_slug) = self.state.hunt_slug.as_ref() {
+        } else {
+            if let Some(hunt_slug) = self.state.hunt_slug.clone() {
                 if self.state.hunt_session.is_none() {
                     self.state.hunt_session = Some(HuntSession {
                         hunt_slug: hunt_slug.clone(),
-                        started_at_ms: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_millis() as u64,
+                        started_at_ms: now_ms(),
                         ..Default::default()
                     });
+                } else if let Some(session) = self.state.hunt_session.as_mut() {
+                    // A welcome after reconnect can report a newer hunt; keep
+                    // the continuous session totals and update only its label.
+                    session.hunt_slug = hunt_slug.clone();
                 }
-                self.state.activity = AccountActivity::Farming {
-                    hunt_slug: hunt_slug.clone(),
-                };
+                if initialize_hunt || incoming.no_centro == Some(false) {
+                    self.state.activity = AccountActivity::Farming {
+                        hunt_slug: hunt_slug.clone(),
+                    };
+                }
+            } else if incoming.no_centro.is_some() {
+                self.state.activity = AccountActivity::Idle;
             }
-        } else if incoming.no_centro.is_some() {
-            self.state.activity = AccountActivity::Idle;
         }
         copy!(active_id);
         if let Some(items) = incoming.items {
@@ -1162,12 +1180,11 @@ impl AccountRuntime {
                             }
                         }
                     }
-                    self.metrics.on_battle_event(
-                        event,
-                        !self.state.no_centro && self.account.status == ConnectionStatus::Online,
-                    );
                     if let crate::protocol::BattleEvent::HuntSelected { slug, .. } = event {
                         let changed = self.state.hunt_slug.as_deref() != Some(slug);
+                        if changed {
+                            self.metrics = MetricsEngine::default();
+                        }
                         self.reconcile_hunt_timer(slug, now_ms());
                         self.state.hunt_slug = Some(slug.clone());
                         self.state.pending_hunt_slug = None;
@@ -1178,19 +1195,37 @@ impl AccountRuntime {
                             hunt_slug: slug.clone(),
                         };
                         if changed {
-                            self.state.hunt_session = Some(HuntSession {
-                                hunt_slug: slug.clone(),
-                                started_at_ms: now_ms(),
-                                ..Default::default()
-                            });
+                            if let Some(session) = self.state.hunt_session.as_mut() {
+                                session.hunt_slug = slug.clone();
+                            } else {
+                                self.state.hunt_session = Some(HuntSession {
+                                    hunt_slug: slug.clone(),
+                                    started_at_ms: now_ms(),
+                                    ..Default::default()
+                                });
+                            }
                         }
                     }
+                    if matches!(event, crate::protocol::BattleEvent::Center { .. }) {
+                        self.state.no_centro = true;
+                        self.state.activity = AccountActivity::PokemonCenter;
+                        self.metrics = MetricsEngine::default();
+                        self.clear_hunt_timer();
+                    }
+                    self.metrics.on_battle_event(
+                        event,
+                        !self.state.no_centro && self.account.status == ConnectionStatus::Online,
+                    );
                     if let Some(session) = self.state.hunt_session.as_mut() {
                         match event {
                             crate::protocol::BattleEvent::Death(death)
                                 if death.quem == "selvagem" =>
                             {
                                 session.kills += 1;
+                                session.trainer_xp =
+                                    session.trainer_xp.saturating_add(death.trainer_xp);
+                                session.pokemon_xp =
+                                    session.pokemon_xp.saturating_add(death.pokemon_xp);
                                 session.xp_obtained =
                                     session.xp_obtained.saturating_add(if death.pokemon_xp > 0 {
                                         death.pokemon_xp
@@ -1211,8 +1246,25 @@ impl AccountRuntime {
                                         quantity;
                                 }
                             }
-                            crate::protocol::BattleEvent::Ball { sucesso: true, .. } => {
-                                session.captures += 1
+                            crate::protocol::BattleEvent::Ball {
+                                ball_id,
+                                sucesso,
+                                shiny,
+                                ..
+                            } => {
+                                *session.balls_used.entry(ball_id.to_string()).or_default() += 1;
+                                if *sucesso {
+                                    session.captures += 1;
+                                    if *shiny {
+                                        session.shinies_captured += 1;
+                                    }
+                                }
+                                if *shiny {
+                                    session.shinies_seen += 1;
+                                }
+                            }
+                            crate::protocol::BattleEvent::Fled { shiny: true, .. } => {
+                                session.shinies_seen += 1;
                             }
                             _ => {}
                         }
@@ -1411,6 +1463,7 @@ pub struct AccountManager {
     shutting_down: Arc<AtomicBool>,
     market_signals: broadcast::Sender<MarketSignal>,
     hunt_timer_notifications: watch::Sender<u64>,
+    hunt_session_notifications: watch::Sender<u64>,
     #[cfg(debug_assertions)]
     validation_read_only: Arc<AtomicBool>,
     #[cfg(debug_assertions)]
@@ -1431,6 +1484,12 @@ pub struct HuntTimerPersistenceChange {
     pub account_id: String,
     pub timer: HuntTimerState,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HuntSessionPersistenceChange {
+    pub account_id: String,
+    pub revision: u64,
+    pub session: Option<HuntSession>,
+}
 #[derive(Clone)]
 struct AccountLifecycleControl {
     lock: Arc<tokio::sync::Mutex<()>>,
@@ -1441,6 +1500,7 @@ impl Default for AccountManager {
     fn default() -> Self {
         let (market_signals, _) = broadcast::channel(128);
         let (hunt_timer_notifications, _) = watch::channel(0);
+        let (hunt_session_notifications, _) = watch::channel(0);
         #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
         let (mobile_changes, _) = watch::channel(0);
         Self {
@@ -1455,6 +1515,7 @@ impl Default for AccountManager {
             shutting_down: Arc::new(AtomicBool::new(false)),
             market_signals,
             hunt_timer_notifications,
+            hunt_session_notifications,
             #[cfg(debug_assertions)]
             validation_read_only: Arc::new(AtomicBool::new(false)),
             #[cfg(debug_assertions)]
@@ -1807,6 +1868,30 @@ impl AccountManager {
         runtime.state.navigation_error = None;
         Ok(())
     }
+    /// Resets the local session summary without sending a game command. The
+    /// currently selected hunt timer is intentionally left unchanged.
+    pub fn reset_hunt_session(&self, account_id: &str) -> Result<(), AccountError> {
+        let mut runtimes = self.runtimes.lock();
+        let runtime = runtimes
+            .get_mut(account_id)
+            .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
+        runtime.state.hunt_session = runtime
+            .state
+            .hunt_slug
+            .clone()
+            .map(|hunt_slug| HuntSession {
+                hunt_slug,
+                started_at_ms: now_ms(),
+                ..Default::default()
+            });
+        runtime.hunt_session_revision = runtime.hunt_session_revision.saturating_add(1);
+        runtime.hunt_session_dirty = true;
+        drop(runtimes);
+        self.hunt_session_notifications
+            .send_modify(|revision| *revision = revision.wrapping_add(1));
+        self.mark_mobile_changed();
+        Ok(())
+    }
     pub fn sell_pokemon(&self, account_id: &str, pokemon_id: u64) -> Result<(), AccountError> {
         let mut runtimes = self.runtimes.lock();
         let runtime = runtimes
@@ -2087,9 +2172,30 @@ impl AccountManager {
         let runtime = runtimes
             .get_mut(account_id)
             .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
-        runtime.state.hunt_started_at_ms = Some(timer.started_at_ms);
-        runtime.hunt_timer = Some(timer);
+        runtime.hunt_timer_revision = timer.revision;
+        if timer.hunt_slug.is_empty() {
+            runtime.state.hunt_started_at_ms = None;
+            runtime.hunt_timer = None;
+        } else {
+            runtime.state.hunt_started_at_ms = Some(timer.started_at_ms);
+            runtime.hunt_timer = Some(timer);
+        }
         runtime.hunt_timer_dirty = false;
+        Ok(())
+    }
+    pub fn restore_hunt_session(
+        &self,
+        account_id: &str,
+        session: Option<HuntSession>,
+        revision: u64,
+    ) -> Result<(), AccountError> {
+        let mut runtimes = self.runtimes.lock();
+        let runtime = runtimes
+            .get_mut(account_id)
+            .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
+        runtime.state.hunt_session = session;
+        runtime.hunt_session_revision = revision;
+        runtime.hunt_session_dirty = false;
         Ok(())
     }
     pub fn pending_hunt_timer_changes(&self) -> Vec<HuntTimerPersistenceChange> {
@@ -2097,14 +2203,13 @@ impl AccountManager {
             .lock()
             .values()
             .filter(|runtime| runtime.hunt_timer_dirty)
-            .filter_map(|runtime| {
-                runtime
-                    .hunt_timer
-                    .clone()
-                    .map(|timer| HuntTimerPersistenceChange {
-                        account_id: runtime.account.id.clone(),
-                        timer,
-                    })
+            .map(|runtime| HuntTimerPersistenceChange {
+                account_id: runtime.account.id.clone(),
+                timer: runtime.hunt_timer.clone().unwrap_or(HuntTimerState {
+                    hunt_slug: String::new(),
+                    started_at_ms: 0,
+                    revision: runtime.hunt_timer_revision,
+                }),
             })
             .collect()
     }
@@ -2112,7 +2217,11 @@ impl AccountManager {
         let mut runtimes = self.runtimes.lock();
         for change in changes {
             if let Some(runtime) = runtimes.get_mut(&change.account_id)
-                && runtime.hunt_timer.as_ref() == Some(&change.timer)
+                && runtime.hunt_timer_revision == change.timer.revision
+                && runtime
+                    .hunt_timer
+                    .as_ref()
+                    .is_none_or(|timer| timer == &change.timer)
             {
                 runtime.hunt_timer_dirty = false;
             }
@@ -2120,6 +2229,32 @@ impl AccountManager {
     }
     pub fn subscribe_hunt_timer_changes(&self) -> watch::Receiver<u64> {
         self.hunt_timer_notifications.subscribe()
+    }
+    pub fn pending_hunt_session_changes(&self) -> Vec<HuntSessionPersistenceChange> {
+        self.runtimes
+            .lock()
+            .values()
+            .filter(|runtime| runtime.hunt_session_dirty)
+            .map(|runtime| HuntSessionPersistenceChange {
+                account_id: runtime.account.id.clone(),
+                revision: runtime.hunt_session_revision,
+                session: runtime.state.hunt_session.clone(),
+            })
+            .collect()
+    }
+    pub fn acknowledge_hunt_session_changes(&self, changes: &[HuntSessionPersistenceChange]) {
+        let mut runtimes = self.runtimes.lock();
+        for change in changes {
+            if let Some(runtime) = runtimes.get_mut(&change.account_id)
+                && runtime.hunt_session_revision == change.revision
+                && runtime.state.hunt_session == change.session
+            {
+                runtime.hunt_session_dirty = false;
+            }
+        }
+    }
+    pub fn subscribe_hunt_session_changes(&self) -> watch::Receiver<u64> {
+        self.hunt_session_notifications.subscribe()
     }
     /// Removes only Manager state. The profile directory is intentionally kept
     /// so a user can opt to reuse it later; profile deletion needs a separate,
@@ -2165,18 +2300,28 @@ impl AccountManager {
     }
     pub fn ingest(&self, account_id: &str, frame: ServerFrame) -> Result<(), AccountError> {
         let market_signal = MarketSignal::from_server_frame(account_id, &frame);
-        let hunt_timer_changed = {
+        let (hunt_timer_changed, hunt_session_changed) = {
             let mut runtimes = self.runtimes.lock();
             let runtime = runtimes
                 .get_mut(account_id)
                 .ok_or_else(|| AccountError::NotFound(account_id.to_owned()))?;
             let previous_timer = runtime.hunt_timer.clone();
+            let previous_session = runtime.state.hunt_session.clone();
             runtime.ingest(frame);
-            runtime.hunt_timer != previous_timer
+            let hunt_session_changed = runtime.state.hunt_session != previous_session;
+            if hunt_session_changed {
+                runtime.hunt_session_revision = runtime.hunt_session_revision.saturating_add(1);
+                runtime.hunt_session_dirty = true;
+            }
+            (runtime.hunt_timer != previous_timer, hunt_session_changed)
         };
         self.mark_mobile_changed();
         if hunt_timer_changed {
             self.hunt_timer_notifications
+                .send_modify(|revision| *revision = revision.wrapping_add(1));
+        }
+        if hunt_session_changed {
+            self.hunt_session_notifications
                 .send_modify(|revision| *revision = revision.wrapping_add(1));
         }
         if let Some(signal) = market_signal {
@@ -4523,6 +4668,41 @@ mod tests {
         );
     }
     #[test]
+    fn hunt_session_totals_survive_browser_background_transitions() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "nick".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"huntSlug":"ancient_pupitar","noCentro":false}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"morte","quem":"selvagem","slot":2,"xpTreinador":25,"xpPokemon":25,"ouro":7}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let expected = manager.snapshots()[0].state.hunt_session.clone().unwrap();
+
+        manager
+            .transition("a", AccountRuntimeState::BrowserConnected)
+            .unwrap();
+        manager
+            .transition("a", AccountRuntimeState::Background)
+            .unwrap();
+
+        assert_eq!(manager.snapshots()[0].state.hunt_session, Some(expected));
+    }
+    #[test]
     fn hunt_session_accumulates_events_and_survives_reconnect() {
         let manager = AccountManager::default();
         manager
@@ -4534,6 +4714,8 @@ mod tests {
         let session = snapshot.state.hunt_session.unwrap();
         assert_eq!(session.kills, 1);
         assert_eq!(session.xp_obtained, 25);
+        assert_eq!(session.trainer_xp, 25);
+        assert_eq!(session.pokemon_xp, 25);
         assert_eq!(session.gold_combat + session.gold_auto_sale, 10);
         assert_eq!(session.drops["Earth Ball"], 4);
         assert_eq!(snapshot.state.pokemon[0].xp_level, Some(100));
@@ -4560,16 +4742,218 @@ mod tests {
                 ServerFrame::parse(r#"{"t":"estado","estado":{"noCentro":true}}"#).unwrap(),
             )
             .unwrap();
-        assert!(manager.snapshots()[0].state.hunt_session.is_none());
         assert_eq!(
-            manager.snapshots()[0].state.hunt_started_at_ms,
-            Some(session.started_at_ms)
+            manager.snapshots()[0]
+                .state
+                .hunt_session
+                .as_ref()
+                .unwrap()
+                .kills,
+            1
         );
+        assert_eq!(manager.snapshots()[0].state.hunt_started_at_ms, None);
         assert_eq!(
             manager.snapshots()[0].state.activity,
             crate::domain::AccountActivity::PokemonCenter
         );
     }
+    #[test]
+    fn hunt_session_tracks_balls_and_shinies_and_resets_without_changing_hunt_timer() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "nick".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"huntSlug":"ancient_pupitar","noCentro":false}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let hunt_started_at_ms = manager.snapshots()[0].state.hunt_started_at_ms;
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"morte","quem":"selvagem","slot":2,"xpTreinador":31,"xpPokemon":27,"ouro":0},{"k":"bola","ballId":4,"slot":2,"sucesso":true,"chance":1.0,"shiny":true},{"k":"fugiu","nome":"Pupitar","level":500,"shiny":true}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let before = manager.snapshots().pop().unwrap();
+        let session = before.state.hunt_session.unwrap();
+        assert_eq!(session.trainer_xp, 31);
+        assert_eq!(session.pokemon_xp, 27);
+        assert_eq!(session.balls_used.get("4"), Some(&1));
+        assert_eq!(session.shinies_seen, 2);
+        assert_eq!(session.shinies_captured, 1);
+
+        manager.reset_hunt_session("a").unwrap();
+
+        let after = manager.snapshots().pop().unwrap();
+        let reset = after.state.hunt_session.unwrap();
+        assert_eq!(reset.hunt_slug, "ancient_pupitar");
+        assert!(reset.started_at_ms >= session.started_at_ms);
+        assert_eq!(reset.kills, 0);
+        assert_eq!(reset.trainer_xp, 0);
+        assert!(reset.balls_used.is_empty());
+        assert_eq!(after.state.hunt_started_at_ms, hunt_started_at_ms);
+    }
+
+    #[test]
+    fn hunt_session_is_preserved_across_center_and_hunt_changes_until_manual_reset() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "nick".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"huntSlug":"ancient_pupitar","noCentro":false}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"morte","quem":"selvagem","slot":2,"xpTreinador":31,"xpPokemon":27,"ouro":12}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let before_center = manager.snapshots()[0].state.hunt_session.clone().unwrap();
+        assert_eq!(before_center.kills, 1);
+        assert_eq!(before_center.trainer_xp, 31);
+
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(r#"{"t":"estado","estado":{"noCentro":true}}"#).unwrap(),
+            )
+            .unwrap();
+        let centered_session = manager.snapshots()[0].state.hunt_session.clone().unwrap();
+        assert_eq!(centered_session.started_at_ms, before_center.started_at_ms);
+        assert_eq!(centered_session.kills, before_center.kills);
+        assert_eq!(centered_session.trainer_xp, before_center.trainer_xp);
+        assert_eq!(centered_session.gold_combat, before_center.gold_combat);
+        assert_eq!(manager.snapshots()[0].state.hunt_started_at_ms, None);
+
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(r#"{"t":"estado","estado":{"noCentro":false}}"#).unwrap(),
+            )
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"hunt","nome":"Shellder","slug":"shellder"}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let snapshots = manager.snapshots();
+        let state = &snapshots[0].state;
+        let session = state.hunt_session.as_ref().unwrap();
+        assert_eq!(session.hunt_slug, "shellder");
+        assert_eq!(session.started_at_ms, before_center.started_at_ms);
+        assert_eq!(session.kills, 1);
+        assert_eq!(session.trainer_xp, 31);
+        assert!(state.hunt_started_at_ms.is_some());
+        assert_eq!(
+            state.activity,
+            crate::domain::AccountActivity::Farming {
+                hunt_slug: "shellder".into()
+            }
+        );
+
+        manager.reset_hunt_session("a").unwrap();
+        let reset = manager.snapshots()[0].state.hunt_session.clone().unwrap();
+        assert_eq!(reset.hunt_slug, "shellder");
+        assert!(reset.started_at_ms >= session.started_at_ms);
+        assert_eq!(reset.kills, 0);
+        assert_eq!(reset.trainer_xp, 0);
+    }
+
+    #[test]
+    fn hunt_change_and_center_reset_hunt_metrics_and_timer_but_keep_session_totals() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "nick".into(), "#fff".into()))
+            .unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"huntSlug":"ancient_pupitar","noCentro":false}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let first_timer = manager.snapshots()[0].state.hunt_started_at_ms;
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"morte","quem":"selvagem","slot":2,"xpTreinador":25,"xpPokemon":25,"ouro":7}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(manager.snapshots()[0].metrics.kills, 1);
+
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"hunt","nome":"Shellder","slug":"shellder"}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let switched = manager.snapshots()[0].clone();
+        assert_eq!(switched.metrics.kills, 0);
+        assert_ne!(switched.state.hunt_started_at_ms, first_timer);
+        assert_eq!(switched.state.hunt_session.as_ref().unwrap().kills, 1);
+
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"batalha","ev":[{"k":"morte","quem":"selvagem","slot":3,"xpTreinador":31,"xpPokemon":27,"ouro":12}]}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(manager.snapshots()[0].metrics.kills, 1);
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(r#"{"t":"batalha","ev":[{"k":"centro","motivo":"volta"}]}"#)
+                    .unwrap(),
+            )
+            .unwrap();
+        let centered = manager.snapshots()[0].clone();
+        assert!(centered.state.no_centro);
+        assert_eq!(centered.metrics.kills, 0);
+        assert_eq!(centered.metrics.xp_per_hour, 0);
+        assert_eq!(centered.state.hunt_started_at_ms, None);
+        assert_eq!(centered.state.hunt_session.as_ref().unwrap().kills, 2);
+        assert!(
+            manager
+                .pending_hunt_timer_changes()
+                .iter()
+                .any(|change| change.timer.hunt_slug.is_empty())
+        );
+    }
+
     #[test]
     fn hunt_session_changes_only_after_server_hunt_confirmation() {
         let manager = AccountManager::default();

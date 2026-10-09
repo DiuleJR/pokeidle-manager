@@ -234,6 +234,21 @@ export interface AccountView {
   map: string
   onlineSeconds: number
   huntStartedAtMs?: number | null
+  huntSession?: {
+    huntSlug: string
+    startedAtMs: number
+    kills: number
+    captures: number
+    xpObtained: number
+    trainerXp: number
+    pokemonXp: number
+    goldCombat: number
+    goldAutoSale: number
+    drops: Record<string, number>
+    ballsUsed: Record<string, number>
+    shiniesSeen: number
+    shiniesCaptured: number
+  } | null
   pokemon: string
   hp: number
   maxHp: number
