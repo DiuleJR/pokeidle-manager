@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountFromRuntime, formatHuntSlug } from './real-account'
+import { accountFromLive, accountFromRuntime, formatHuntSlug } from './real-account'
 
 describe('real account presentation', () => {
   it('formats a hunt slug only as a display fallback', () => {
@@ -19,6 +19,52 @@ describe('real account presentation', () => {
       metrics: { xp_per_hour: 0, gold_per_hour: 0, kills: 0, captures: 0 },
     } as never)
     expect(account.huntStartedAtMs).toBe(1_700_000_000_000)
+  })
+  it('projects hunt session details from the live account snapshot', () => {
+    const account = accountFromLive({
+      account: { id: 'a', nick: 'ash', card_color: '#fff', status: 'online', mode: 'background' },
+      state: {
+        hunt_slug: 'ancient_pupitar',
+        hunt_started_at_ms: 1_700_000_000_000,
+        hunt_session: {
+          hunt_slug: 'ancient_pupitar',
+          started_at_ms: 1_700_000_000_500,
+          kills: 4,
+          captures: 1,
+          xp_obtained: 100,
+          trainer_xp: 90,
+          pokemon_xp: 100,
+          gold_combat: 20,
+          gold_auto_sale: 5,
+          drops: { 'Bronze Boss Token': 2 },
+          balls_used: { '4': 3 },
+          shinies_seen: 2,
+          shinies_captured: 1,
+        },
+        no_centro: false,
+        automation: { potion_ids: [], ball_ids: [], revive_ids: [] },
+      },
+      metrics: { xp_per_hour: 0, gold_per_hour: 0, kills: 0, captures: 0 },
+      current_potion_quantity: 0,
+      current_ball_quantity: 0,
+      revisions: { depot: 1, inventory: 1, hunt_options: 1 },
+    } as never)
+
+    expect(account.huntSession).toEqual({
+      huntSlug: 'ancient_pupitar',
+      startedAtMs: 1_700_000_000_500,
+      kills: 4,
+      captures: 1,
+      xpObtained: 100,
+      trainerXp: 90,
+      pokemonXp: 100,
+      goldCombat: 20,
+      goldAutoSale: 5,
+      drops: { 'Bronze Boss Token': 2 },
+      ballsUsed: { '4': 3 },
+      shiniesSeen: 2,
+      shiniesCaptured: 1,
+    })
   })
   it('uses the latest server timestamp to present the VIP state', () => {
     const base = {

@@ -2784,6 +2784,38 @@ select,
   padding-bottom: 10px;
   border-bottom: 1px solid #79d7f126;
 }
+.premium-account-identity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.premium-account-name-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 7px;
+  margin-bottom: 5px;
+}
+.premium-account-name-row h3 {
+  margin: 0;
+}
+.premium-account-xp-bonus {
+  color: #78dcff;
+  font: 800 0.65rem/1 'Cascadia Mono', Consolas, monospace;
+  white-space: nowrap;
+  text-shadow: 0 0 8px #38c9ff40;
+}
+.premium-account-xp-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.premium-account-xp-icons img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px #120c15);
+}
 .premium-account-card .avatar {
   width: 42px;
   height: 42px;
@@ -4344,61 +4376,121 @@ select,
   font-size: 0.51rem;
 }
 
-.detail-event-list {
-  max-height: 202px;
-  overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+.detail-session-heading h2 {
+  flex: 1 1 auto;
 }
-.detail-event-list::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+.detail-session-reset,
+.detail-session-confirm > .button {
+  min-height: 26px;
+  padding: 5px 8px;
+  font-size: 0.61rem;
 }
-.detail-event-list > div {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 21px minmax(0, 1fr) auto;
+.detail-session-confirm {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+.detail-session-timer {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
-  min-height: 31px;
-  border-bottom: 1px solid #67cdf216;
-}
-.detail-event-list > div:last-child {
-  border-bottom: 0;
-}
-.detail-event-list p {
-  overflow: hidden;
-  margin: 0;
-  color: #cce4f0;
-  font-size: 0.64rem;
-  text-overflow: ellipsis;
+  gap: 4px;
+  margin-left: auto;
+  color: #9cecff;
+  font: 800 0.72rem/1 'Cascadia Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.detail-event-list time {
-  color: #8eb5cb;
-  font:
-    700 0.55rem/1 'Cascadia Mono',
-    Consolas,
-    monospace;
+.detail-session-timer img {
+  width: 15px;
+  height: 15px;
 }
-.detail-event-icon {
-  width: 19px;
-  height: 19px;
-  flex-basis: 19px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
+.detail-session-reset-confirm {
+  border-color: #d69a51;
+  background: linear-gradient(180deg, #9c5c32, #683d32);
 }
-.detail-event-icon-gold {
-  color: #ffc75e;
+.detail-session-focus {
+  display: grid;
+  gap: 12px;
 }
-.detail-event-icon-farm,
-.detail-event-icon-metrics {
-  color: #63dff7;
+.detail-session-focus-section h3 {
+  margin: 0 0 6px;
+  color: #e8c994;
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.detail-event-icon-drop {
-  color: #a8e6ff;
+.detail-session-rare-grid,
+.detail-session-shiny-grid {
+  display: grid;
+  gap: 6px;
+}
+.detail-session-rare-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.detail-session-shiny-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.detail-session-rare-grid > div,
+.detail-session-shiny-grid > div {
+  min-width: 0;
+  min-height: 52px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 7px 8px;
+  border: 1px solid #2e5f787b;
+  border-radius: 8px;
+  background: #071a29;
+  text-align: center;
+}
+.detail-session-rare-grid > .detail-session-rare-item {
+  min-height: 72px;
+  gap: 3px;
+}
+.detail-session-rare-sprite {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  transition: filter 140ms ease, opacity 140ms ease;
+}
+.detail-session-rare-sprite[data-has-drop='false'] {
+  filter: grayscale(1);
+  opacity: 0.58;
+}
+.detail-session-rare-sprite .resolved-asset,
+.detail-session-rare-sprite .asset-fallback {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+.detail-session-rare-sprite > span {
+  color: #d8dce1;
+  font-size: 1.25rem;
+}
+.detail-session-rare-grid small,
+.detail-session-shiny-grid small {
+  color: #9cb8c8;
+  font-size: 0.61rem;
+  font-weight: 700;
+}
+.detail-session-rare-grid strong,
+.detail-session-shiny-grid strong {
+  color: #e8f8ff;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.detail-session-empty {
+  min-height: 130px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+.detail-session-error {
+  margin: 7px 0 0;
+  font-size: 0.62rem;
 }
 @media (max-width: 1100px) {
   .detail-premium-grid {

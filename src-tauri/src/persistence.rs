@@ -72,6 +72,11 @@ pub fn migrate(connection: &Connection) -> Result<(), PersistenceError> {
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (7, unixepoch())",
         [],
     )?;
+    connection.execute_batch(include_str!("../migrations/0008_account_hunt_session.sql"))?;
+    connection.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (8, unixepoch())",
+        [],
+    )?;
     Ok(())
 }
 #[cfg(test)]
@@ -217,6 +222,13 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
+        let session_table_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'account_hunt_session'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         let migration_count: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM schema_migrations WHERE version = 7",
@@ -224,8 +236,17 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
+        let session_migration_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE version = 8",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(account_count, 1);
         assert_eq!(timer_table_count, 1);
+        assert_eq!(session_table_count, 1);
         assert_eq!(migration_count, 1);
+        assert_eq!(session_migration_count, 1);
     }
 }

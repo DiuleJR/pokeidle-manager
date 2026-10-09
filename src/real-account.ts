@@ -97,7 +97,7 @@ interface RuntimeAccount {
   mode: AccountMode
   runtime?: 'offline' | 'browser_bootstrap' | 'waiting_for_login' | 'browser_connected' | 'preparing_handoff' | 'background_connecting' | 'background' | 'reconnecting' | 'login_required' | 'error' | 'stopping'
 }
-interface RuntimeSnapshot {
+export interface RuntimeSnapshot {
   account: RuntimeAccount
   state: {
     level?: number
@@ -156,9 +156,14 @@ interface RuntimeSnapshot {
       kills: number
       captures: number
       xp_obtained: number
+      trainer_xp: number
+      pokemon_xp: number
       gold_combat: number
       gold_auto_sale: number
       drops: Record<string, number>
+      balls_used: Record<string, number>
+      shinies_seen: number
+      shinies_captured: number
     }
   }
   metrics: { xp_per_hour: number; gold_per_hour: number; kills: number; captures: number; potions_used?: Record<string, number>; potions_per_hour?: number; potion_usage_per_hour?: Record<string, number>; balls_used?: Record<string, number> }
@@ -306,6 +311,23 @@ export const accountFromLive = (snapshot: LiveRuntimeSnapshot): AccountView => {
     activity: state.activity,
     onlineSeconds,
     huntStartedAtMs: state.hunt_started_at_ms,
+    huntSession: state.hunt_session
+      ? {
+          huntSlug: state.hunt_session.hunt_slug,
+          startedAtMs: state.hunt_session.started_at_ms,
+          kills: state.hunt_session.kills,
+          captures: state.hunt_session.captures,
+          xpObtained: state.hunt_session.xp_obtained,
+          trainerXp: state.hunt_session.trainer_xp,
+          pokemonXp: state.hunt_session.pokemon_xp,
+          goldCombat: state.hunt_session.gold_combat,
+          goldAutoSale: state.hunt_session.gold_auto_sale,
+          drops: state.hunt_session.drops,
+          ballsUsed: state.hunt_session.balls_used,
+          shiniesSeen: state.hunt_session.shinies_seen,
+          shiniesCaptured: state.hunt_session.shinies_captured,
+        }
+      : null,
     pokemon: active?.nome ?? '—',
     hp: active?.hp ?? 0,
     maxHp: active?.maxHp ?? 0,
@@ -462,6 +484,23 @@ export const accountFromRuntime = (snapshot: RuntimeSnapshot): AccountView => {
     map: selectedHunt?.area ?? selectedHunt?.region ?? '—',
     onlineSeconds,
     huntStartedAtMs: state.hunt_started_at_ms,
+    huntSession: state.hunt_session
+      ? {
+          huntSlug: state.hunt_session.hunt_slug,
+          startedAtMs: state.hunt_session.started_at_ms,
+          kills: state.hunt_session.kills,
+          captures: state.hunt_session.captures,
+          xpObtained: state.hunt_session.xp_obtained,
+          trainerXp: state.hunt_session.trainer_xp,
+          pokemonXp: state.hunt_session.pokemon_xp,
+          goldCombat: state.hunt_session.gold_combat,
+          goldAutoSale: state.hunt_session.gold_auto_sale,
+          drops: state.hunt_session.drops,
+          ballsUsed: state.hunt_session.balls_used,
+          shiniesSeen: state.hunt_session.shinies_seen,
+          shiniesCaptured: state.hunt_session.shinies_captured,
+        }
+      : null,
     pokemon: active?.nome ?? '—',
     hp: active?.hp ?? 0,
     maxHp: active?.maxHp ?? 0,

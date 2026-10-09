@@ -25,7 +25,7 @@ use connection::ConnectionManager;
 use domain::{
     AccountDepotPokemon, AccountHuntOption, AccountInventoryEntry, AccountLiveSnapshot,
     AccountMode, AccountRecord, AccountRuntimeState, AccountSnapshot, CaptureMode, ConnectionOwner,
-    ConnectionStatus, HuntTimerState, MAX_ACCOUNTS, VersionedAccountRead,
+    ConnectionStatus, HuntSession, HuntTimerState, MAX_ACCOUNTS, VersionedAccountRead,
 };
 use parking_lot::Mutex;
 use rusqlite::{Connection, OptionalExtension};
@@ -205,6 +205,11 @@ impl AppCore {
                     .restore_hunt_timer(&account_id, timer)
                     .map_err(|_| rusqlite::Error::InvalidQuery)?;
             }
+            if let Some((session, revision)) = load_hunt_session(&database, &account_id)? {
+                accounts
+                    .restore_hunt_session(&account_id, session, revision)
+                    .map_err(|_| rusqlite::Error::InvalidQuery)?;
+            }
             let rules = load_auto_buy_rules(&database, &account_id)?;
             accounts
                 .restore_auto_buy_rules(&account_id, rules)
@@ -256,6 +261,7 @@ impl AppCore {
             bridge.cancellation.cancel();
         }
         persist_pending_hunt_timer_changes_sync(self);
+        persist_pending_hunt_session_changes_sync(self);
         self.market.shutdown();
         self.accounts.stop_all();
         let _ = self.database.lock().execute_batch("PRAGMA optimize;");
@@ -777,15 +783,52 @@ fn load_hunt_timer(
         tracing::warn!(%account_id, "ignoring invalid persisted hunt timer");
         return Ok(None);
     };
-    if hunt_slug.trim().is_empty() || revision == 0 {
+    if revision == 0 {
         tracing::warn!(%account_id, "ignoring invalid persisted hunt timer");
         return Ok(None);
+    }
+    if hunt_slug.trim().is_empty() {
+        return Ok(Some(HuntTimerState {
+            hunt_slug: String::new(),
+            started_at_ms: 0,
+            revision,
+        }));
     }
     Ok(Some(HuntTimerState {
         hunt_slug,
         started_at_ms,
         revision,
     }))
+}
+fn load_hunt_session(
+    database: &Connection,
+    account_id: &str,
+) -> Result<Option<(Option<HuntSession>, u64)>, rusqlite::Error> {
+    let row = database
+        .query_row(
+            "SELECT revision, session_json FROM account_hunt_session WHERE account_id = ?1",
+            [account_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    let Some((revision, session_json)) = row else {
+        return Ok(None);
+    };
+    let Ok(revision) = u64::try_from(revision) else {
+        tracing::warn!(%account_id, "ignoring invalid persisted hunt session revision");
+        return Ok(None);
+    };
+    if revision == 0 {
+        tracing::warn!(%account_id, "ignoring invalid persisted hunt session revision");
+        return Ok(None);
+    }
+    match serde_json::from_str::<Option<HuntSession>>(&session_json) {
+        Ok(session) => Ok(Some((session, revision))),
+        Err(error) => {
+            tracing::warn!(%account_id, %error, "ignoring invalid persisted hunt session");
+            Ok(Some((None, revision)))
+        }
+    }
 }
 fn persist_hunt_timer(
     database: &Connection,
@@ -803,6 +846,20 @@ fn persist_hunt_timer(
             started_at_ms,
             revision,
         ),
+    )?;
+    Ok(())
+}
+fn persist_hunt_session(
+    database: &Connection,
+    change: &accounts::HuntSessionPersistenceChange,
+) -> Result<(), rusqlite::Error> {
+    let revision = i64::try_from(change.revision)
+        .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    let session_json = serde_json::to_string(&change.session)
+        .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    database.execute(
+        "INSERT INTO account_hunt_session(account_id, revision, session_json) VALUES (?1, ?2, ?3) ON CONFLICT(account_id) DO UPDATE SET revision = excluded.revision, session_json = excluded.session_json WHERE excluded.revision > account_hunt_session.revision",
+        (&change.account_id, revision, session_json),
     )?;
     Ok(())
 }
@@ -827,20 +884,44 @@ fn persist_pending_hunt_timer_changes_sync(core: &AppCore) {
     }
     core.accounts.acknowledge_hunt_timer_changes(&persisted);
 }
-async fn persist_pending_hunt_timer_changes(core: &AppCore) -> bool {
-    let changes = core.accounts.pending_hunt_timer_changes();
+fn persist_pending_hunt_session_changes_sync(core: &AppCore) {
+    let changes = core.accounts.pending_hunt_session_changes();
     if changes.is_empty() {
+        return;
+    }
+    let mut persisted = Vec::with_capacity(changes.len());
+    {
+        let database = core.database.lock();
+        for change in &changes {
+            match persist_hunt_session(&database, change) {
+                Ok(()) => persisted.push(change.clone()),
+                Err(error) => tracing::warn!(
+                    account_id = %change.account_id,
+                    %error,
+                    "could not persist hunt session during shutdown"
+                ),
+            }
+        }
+    }
+    core.accounts.acknowledge_hunt_session_changes(&persisted);
+}
+async fn persist_pending_hunt_timer_changes(core: &AppCore) -> bool {
+    let timer_changes = core.accounts.pending_hunt_timer_changes();
+    let session_changes = core.accounts.pending_hunt_session_changes();
+    if timer_changes.is_empty() && session_changes.is_empty() {
         return true;
     }
     let database = core.database.clone();
-    let write_changes = changes.clone();
+    let write_timer_changes = timer_changes.clone();
+    let write_session_changes = session_changes.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         let database = database.lock();
-        let mut persisted = Vec::with_capacity(write_changes.len());
+        let mut persisted_timers = Vec::with_capacity(write_timer_changes.len());
+        let mut persisted_sessions = Vec::with_capacity(write_session_changes.len());
         let mut failed = false;
-        for change in &write_changes {
+        for change in &write_timer_changes {
             match persist_hunt_timer(&database, change) {
-                Ok(()) => persisted.push(change.clone()),
+                Ok(()) => persisted_timers.push(change.clone()),
                 Err(error) => {
                     failed = true;
                     tracing::warn!(
@@ -851,12 +932,28 @@ async fn persist_pending_hunt_timer_changes(core: &AppCore) -> bool {
                 }
             }
         }
-        Ok::<_, rusqlite::Error>((persisted, failed))
+        for change in &write_session_changes {
+            match persist_hunt_session(&database, change) {
+                Ok(()) => persisted_sessions.push(change.clone()),
+                Err(error) => {
+                    failed = true;
+                    tracing::warn!(
+                        account_id = %change.account_id,
+                        %error,
+                        "could not persist hunt session"
+                    );
+                }
+            }
+        }
+        Ok::<_, rusqlite::Error>((persisted_timers, persisted_sessions, failed))
     })
     .await;
     match result {
-        Ok(Ok((persisted, failed))) => {
-            core.accounts.acknowledge_hunt_timer_changes(&persisted);
+        Ok(Ok((persisted_timers, persisted_sessions, failed))) => {
+            core.accounts
+                .acknowledge_hunt_timer_changes(&persisted_timers);
+            core.accounts
+                .acknowledge_hunt_session_changes(&persisted_sessions);
             !failed
         }
         Ok(Err(error)) => {
@@ -872,7 +969,8 @@ async fn persist_pending_hunt_timer_changes(core: &AppCore) -> bool {
 fn start_hunt_timer_persistence(core: AppCore) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(async move {
         let cancellation = core.lifecycle.token();
-        let mut changes = core.accounts.subscribe_hunt_timer_changes();
+        let mut timer_changes = core.accounts.subscribe_hunt_timer_changes();
+        let mut session_changes = core.accounts.subscribe_hunt_session_changes();
         // Also flush state established before this task subscribed (for
         // example, the first account welcome arriving during app startup).
         let mut initial_or_retry_flush = true;
@@ -883,7 +981,12 @@ fn start_hunt_timer_persistence(core: AppCore) -> tauri::async_runtime::JoinHand
                         let _ = persist_pending_hunt_timer_changes(&core).await;
                         break;
                     }
-                    changed = changes.changed() => {
+                    changed = timer_changes.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                    }
+                    changed = session_changes.changed() => {
                         if changed.is_err() {
                             break;
                         }
@@ -1409,6 +1512,22 @@ fn cancel_navigation(state: tauri::State<'_, AppCore>, account_id: String) -> Re
         .map_err(|error| error.to_string())
 }
 #[tauri::command]
+fn reset_hunt_session(
+    state: tauri::State<'_, AppCore>,
+    account_id: String,
+) -> Result<AccountSnapshot, String> {
+    let core = state.inner();
+    core.accounts
+        .reset_hunt_session(&account_id)
+        .map_err(|error| error.to_string())?;
+    persist_pending_hunt_session_changes_sync(core);
+    core.accounts
+        .snapshots()
+        .into_iter()
+        .find(|snapshot| snapshot.account.id == account_id)
+        .ok_or_else(|| "Conta não encontrada após reset da sessão.".to_owned())
+}
+#[tauri::command]
 fn sell_pokemon(
     state: tauri::State<'_, AppCore>,
     account_id: String,
@@ -1886,6 +2005,7 @@ pub fn run() {
             select_hunt,
             go_center,
             cancel_navigation,
+            reset_hunt_session,
             sell_pokemon,
             sell_all_pokemon,
             set_capture_mode,
@@ -2050,6 +2170,183 @@ mod tests {
         persist_hunt_timer(&database, &stale).unwrap();
 
         assert_eq!(load_hunt_timer(&database, "a").unwrap(), Some(newer.timer));
+    }
+
+    #[test]
+    fn cleared_hunt_timer_tombstone_prevents_stale_write_from_resurrecting_timer() {
+        let database = Connection::open_in_memory().unwrap();
+        persistence::migrate(&database).unwrap();
+        database
+            .execute(
+                "INSERT INTO accounts(id, nick, card_color, created_at) VALUES ('a', 'Alpha', '#fff', unixepoch())",
+                [],
+            )
+            .unwrap();
+        let prior = accounts::HuntTimerPersistenceChange {
+            account_id: "a".into(),
+            timer: HuntTimerState {
+                hunt_slug: "ancient_pupitar".into(),
+                started_at_ms: 1_000,
+                revision: 1,
+            },
+        };
+        let cleared = accounts::HuntTimerPersistenceChange {
+            account_id: "a".into(),
+            timer: HuntTimerState {
+                hunt_slug: String::new(),
+                started_at_ms: 0,
+                revision: 2,
+            },
+        };
+        persist_hunt_timer(&database, &prior).unwrap();
+        persist_hunt_timer(&database, &cleared).unwrap();
+        persist_hunt_timer(&database, &prior).unwrap();
+
+        let restored = load_hunt_timer(&database, "a").unwrap().unwrap();
+        assert!(restored.hunt_slug.is_empty());
+        assert_eq!(restored.revision, 2);
+        let manager = AccountManager::default();
+        manager
+            .add(accounts::new_record(
+                "a".into(),
+                "Alpha".into(),
+                "#fff".into(),
+            ))
+            .unwrap();
+        manager.restore_hunt_timer("a", restored).unwrap();
+        manager
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"huntSlug":"ancient_pupitar","noCentro":false}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let next = manager.pending_hunt_timer_changes().pop().unwrap();
+        assert_eq!(next.timer.revision, 3);
+        persist_hunt_timer(&database, &next).unwrap();
+        assert_eq!(
+            load_hunt_timer(&database, "a").unwrap().unwrap().hunt_slug,
+            "ancient_pupitar"
+        );
+    }
+
+    #[test]
+    fn hunt_session_persists_and_manual_reset_tombstone_rejects_stale_write() {
+        let database = Connection::open_in_memory().unwrap();
+        persistence::migrate(&database).unwrap();
+        database
+            .execute(
+                "INSERT INTO accounts(id, nick, card_color, created_at) VALUES ('a', 'Alpha', '#fff', unixepoch())",
+                [],
+            )
+            .unwrap();
+        let session = HuntSession {
+            hunt_slug: "ancient_pupitar".into(),
+            started_at_ms: 1_700_000_000_000,
+            kills: 24,
+            trainer_xp: 3_400,
+            drops: [("Boss Token".into(), 2)].into(),
+            ..Default::default()
+        };
+        let saved = accounts::HuntSessionPersistenceChange {
+            account_id: "a".into(),
+            revision: 1,
+            session: Some(session.clone()),
+        };
+        persist_hunt_session(&database, &saved).unwrap();
+        assert_eq!(
+            load_hunt_session(&database, "a").unwrap(),
+            Some((Some(session), 1))
+        );
+
+        let reset = accounts::HuntSessionPersistenceChange {
+            account_id: "a".into(),
+            revision: 2,
+            session: None,
+        };
+        persist_hunt_session(&database, &reset).unwrap();
+        persist_hunt_session(&database, &saved).unwrap();
+        assert_eq!(load_hunt_session(&database, "a").unwrap(), Some((None, 2)));
+    }
+
+    #[test]
+    fn hunt_session_restores_after_manager_recreation_and_reset_is_persisted() {
+        let database = Connection::open_in_memory().unwrap();
+        persistence::migrate(&database).unwrap();
+        database
+            .execute(
+                "INSERT INTO accounts(id, nick, card_color, created_at) VALUES ('a', 'Alpha', '#fff', unixepoch())",
+                [],
+            )
+            .unwrap();
+        let session = HuntSession {
+            hunt_slug: "ancient_pupitar".into(),
+            started_at_ms: 1_700_000_000_000,
+            kills: 10,
+            captures: 10,
+            ..Default::default()
+        };
+        persist_hunt_session(
+            &database,
+            &accounts::HuntSessionPersistenceChange {
+                account_id: "a".into(),
+                revision: 1,
+                session: Some(session.clone()),
+            },
+        )
+        .unwrap();
+
+        // A fresh manager represents reopening the app over the same DB.
+        let reopened = AccountManager::default();
+        reopened
+            .add(accounts::new_record(
+                "a".into(),
+                "Alpha".into(),
+                "#fff".into(),
+            ))
+            .unwrap();
+        let (restored, revision) = load_hunt_session(&database, "a").unwrap().unwrap();
+        reopened
+            .restore_hunt_session("a", restored, revision)
+            .unwrap();
+        assert_eq!(reopened.snapshots()[0].state.hunt_session, Some(session));
+        reopened
+            .ingest(
+                "a",
+                ServerFrame::parse(
+                    r#"{"t":"welcome","estado":{"huntSlug":"ancient_pupitar","noCentro":false}}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        reopened.reset_hunt_session("a").unwrap();
+        let changes = reopened.pending_hunt_session_changes();
+        assert_eq!(changes.len(), 1);
+        persist_hunt_session(&database, &changes[0]).unwrap();
+        reopened.acknowledge_hunt_session_changes(&changes);
+
+        let (restored_reset, reset_revision) = load_hunt_session(&database, "a").unwrap().unwrap();
+        let after_reset = AccountManager::default();
+        after_reset
+            .add(accounts::new_record(
+                "a".into(),
+                "Alpha".into(),
+                "#fff".into(),
+            ))
+            .unwrap();
+        after_reset
+            .restore_hunt_session("a", restored_reset, reset_revision)
+            .unwrap();
+        let reset = after_reset.snapshots()[0]
+            .state
+            .hunt_session
+            .clone()
+            .unwrap();
+        assert_eq!(reset.kills, 0);
+        assert_eq!(reset.captures, 0);
     }
 
     #[test]
