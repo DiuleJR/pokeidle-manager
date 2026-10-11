@@ -38,7 +38,8 @@ None found for the initial Ubuntu 22.04 build. Tauri successfully generated both
 
 - Runner path: `src-tauri/target/release/bundle/deb/Pokeidle Manager_0.1.0_amd64.deb`
 - Runner path: `src-tauri/target/release/bundle/appimage/Pokeidle Manager_0.1.0_amd64.AppImage`
-- Package sizes: emitted by the `Registrar nomes e tamanhos dos pacotes` CI step; fill from the final run before closing this audit.
+- `.deb` size: `18,825,794` bytes (about 18.0 MiB).
+- AppImage size: `96,831,992` bytes (about 92.4 MiB).
 - The CI uploads them as `pokeidle-manager-linux-experimental`, retained for 7 days. They are not attached to a GitHub Release.
 
 ## Windows-specific files and impact
@@ -56,7 +57,7 @@ None found for the initial Ubuntu 22.04 build. Tauri successfully generated both
 
 ## CI status
 
-The first PR run (`Verificações automatizadas`, run `38125952981`) completed successfully on both Windows and Ubuntu 22.04. Linux frontend, formatting, check, clippy and tests passed; the Linux `.deb` and AppImage bundling and artifact upload also passed. Final package byte sizes will be added from the follow-up run that prints them explicitly.
+The initial baseline run (`Verificações automatizadas`, run `38125952981`) and final run (`38126909855`) completed successfully on both Windows and Ubuntu 22.04. Linux frontend, formatting, check, clippy, tests, `.deb`/AppImage bundling and artifact upload all passed. The final run prints the exact package paths and byte sizes above.
 
 The Linux job uses no game credentials, cookies or real browser profiles and does not start a game login. It does not open network debugging beyond `127.0.0.1`.
 
@@ -88,4 +89,4 @@ The RC3 baseline README still recommends RC2 and links its downloads. This is a 
 ## CI / PR references
 
 - Experimental draft PR: https://github.com/DiuleJR/pokeidle-manager/pull/13
-- First experimental workflow run: https://github.com/DiuleJR/pokeidle-manager/actions/runs/38125952981
+- Final experimental workflow run: https://github.com/DiuleJR/pokeidle-manager/actions/runs/38126909855
