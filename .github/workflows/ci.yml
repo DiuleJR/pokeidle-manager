@@ -79,6 +79,10 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --no-default-features --features community-build
       - name: Gerar pacotes Linux experimentais
         run: npx tauri build --bundles deb,appimage -- --locked --no-default-features --features community-build
+      - name: Registrar nomes e tamanhos dos pacotes
+        run: |
+          find src-tauri/target/release/bundle/deb src-tauri/target/release/bundle/appimage \
+            -maxdepth 1 -type f -printf '%p\t%s bytes\n' | sort
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pokeidle-manager-linux-experimental
