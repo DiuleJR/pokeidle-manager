@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountView } from '../types'
-import { bonusMultiplier, estimateHunts, readHuntReference, type HuntReference } from './calculator'
+import { bonusMultiplier, estimateHunts, huntCalculationSignature, readHuntReference, type HuntReference } from './calculator'
 
 const reference: HuntReference = {
   looktypes: { '10': 60292 },
@@ -47,6 +47,54 @@ describe('where-to-hunt estimates', () => {
     expect(results[0].secondsPerKill).toBeGreaterThan(2.8)
     expect(results[0].xpTrainerPerHour).toBeGreaterThan(0)
     expect(results[0].goldPerHour).toBeGreaterThan(0)
+  })
+
+  it('uses the selected trainer level and only matching account hunts when available', () => {
+    const referenceWithMoreHunts: HuntReference = {
+      ...reference,
+      hunts: [
+        ...reference.hunts,
+        { s: 'too-high', n: 'Too High', a: 'kanto', nv: 30, e: [[10, 1]] },
+        { s: 'not-verified', n: 'Not Verified', a: 'kanto', nv: 10, e: [[10, 1]] },
+      ],
+    }
+    const results = estimateHunts(account({
+      trainerLevel: 20,
+      activePokemon: {
+        id: '7', name: 'Tyranitar', level: 100, speciesId: 1, quality: 1, potency: 1,
+        types: ['ROCK'], ivs: { hp: 16, atk: 16, def: 16, spAtk: 16, spDef: 16, speed: 16 },
+      },
+      huntOptions: [
+        { slug: 'shedinja', name: 'Observed Shedinja', level: 15, region: 'Outland', species: [{ speciesId: 10, weight: 1 }] },
+        { slug: 'too-high', name: 'Too High', level: 21, region: 'Kanto', species: [{ speciesId: 10, weight: 1 }] },
+      ],
+    }), referenceWithMoreHunts)
+
+    expect(results.map((result) => result.hunt.s)).toEqual(['shedinja'])
+    expect(results[0].hunt.n).toBe('Observed Shedinja')
+  })
+
+  it('falls back to the guide catalog when no account hunt slug matches, still capped by trainer level', () => {
+    const results = estimateHunts(account({
+      trainerLevel: 20,
+      huntOptions: [{ slug: 'unknown-slug', name: 'Unknown', level: 1 }],
+    }), {
+      ...reference,
+      hunts: [
+        ...reference.hunts,
+        { s: 'high-level', n: 'High Level', a: 'kanto', nv: 21, e: [[10, 1]] },
+      ],
+    })
+
+    expect(results.map((result) => result.hunt.s)).toEqual(['shedinja'])
+  })
+
+  it('keeps the calculation signature stable for unrelated live snapshot changes', () => {
+    const initial = account()
+    expect(huntCalculationSignature(account({ ...initial, xp: 42, gold: 99, hp: 12 })))
+      .toBe(huntCalculationSignature(initial))
+    expect(huntCalculationSignature(account({ trainerLevel: 101 })))
+      .not.toBe(huntCalculationSignature(initial))
   })
 
   it('does not calculate when individual IV data is incomplete', () => {
