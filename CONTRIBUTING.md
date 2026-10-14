@@ -38,3 +38,17 @@ Para gerar uma versão comunitária empacotada para Windows, use o comando expl�
 ## Envio de contribuições
 
 Use o fluxo de contribuição documentado neste repositório. Inclua testes ou verificações manuais, informe limitações e não inclua arquivos de compilação gerados nem dados pessoais nos commits. Ao enviar uma contribuição, você a disponibiliza sob a licença do projeto, salvo se os mantenedores documentarem outra condição.
+# Baseline de releases e builds Smoke
+
+Features, correções e pesquisas que possam virar código de produção devem
+partir da release estável/pública mais recente. Branches e worktrees isoladas
+continuam usando essa release como baseline; não devem trocar a base por uma
+cópia antiga ou por uma release anterior. Na data desta revisão, a base atual é
+`v0.1.0-rc.3` (`3b30de0d7a4edd7e2c1d13cb592c9b5a4ae4ebad`). Atualize essa
+referência quando uma nova release pública se tornar a baseline.
+
+Uma build Smoke para validar uma branch deve ser construída da própria branch,
+incluindo todas as alterações sob teste. “Smoke” significa isolamento por
+identifier, app-data e banco (atualmente `com.pokeidle.manager.smoke`); não
+significa voltar a uma cópia limpa ou antiga do projeto. Nunca valide mudanças
+novas com uma Smoke gerada apenas da release sem essas mudanças.

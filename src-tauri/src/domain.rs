@@ -414,6 +414,39 @@ pub struct AccountLiveMetrics {
     pub balls_used: BTreeMap<String, u64>,
 }
 
+/// Shared, read-only lives directory projected from one source account. The
+/// source identity can be present before its first payload; retained data is
+/// marked stale if the source disconnects or reconnects before a fresh patch.
+#[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LivesSnapshot {
+    pub source_account_id: Option<String>,
+    pub source_account_nick: Option<String>,
+    pub source_transport: Option<ConnectionOwner>,
+    pub updated_at: Option<u64>,
+    pub stale: bool,
+    pub twitch: Vec<TwitchLiveChannel>,
+    pub kick: Vec<KickOfficialChannel>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TwitchLiveChannel {
+    pub login: String,
+    pub name: String,
+    pub viewers: u64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct KickOfficialChannel {
+    pub slug: String,
+    pub name: String,
+    pub online: bool,
+    pub viewers: u64,
+    pub active: bool,
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct AccountDataRevisions {
     pub depot: u64,

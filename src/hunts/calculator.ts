@@ -37,6 +37,48 @@ export type HuntEstimate = {
   weakLink?: string
 }
 
+/**
+ * Identifies only fields that affect hunt estimates. Live snapshots also update
+ * unrelated account data frequently, so consumers can retain estimates when
+ * those volatile fields change.
+ */
+export function huntCalculationSignature(account: AccountView): string {
+  const active = account.activePokemon
+  const xpBonus = account.xpBonus
+  return JSON.stringify([
+    account.trainerLevel,
+    account.vip,
+    [
+      active?.speciesId,
+      active?.level,
+      active?.quality,
+      active?.potency,
+      active?.shiny,
+      active?.ivs?.hp,
+      active?.ivs?.atk,
+      active?.ivs?.def,
+      active?.ivs?.spAtk,
+      active?.ivs?.spDef,
+      active?.ivs?.speed,
+    ],
+    [
+      xpBonus?.guildRankPct,
+      xpBonus?.guildBoostActive,
+      xpBonus?.twitchPct,
+      xpBonus?.eventTrainerPct,
+      xpBonus?.eventPokemonPct,
+    ],
+    (account.huntOptions ?? []).map((hunt) => [
+      hunt.slug,
+      hunt.level,
+      hunt.name,
+      hunt.region,
+      hunt.area,
+      hunt.species?.map((species) => [species.speciesId, species.weight]),
+    ]),
+  ])
+}
+
 export function hasCompleteCalculationData(account: AccountView) {
   const active = account.activePokemon
   const ivs = active?.ivs

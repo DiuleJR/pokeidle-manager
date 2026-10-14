@@ -5,6 +5,7 @@ import type {
   AccountView,
   InventoryItem,
 } from './types'
+import type { LiveSnapshot } from './lives/types'
 
 export interface IntegrationDiagnostic {
   lifecycle:
@@ -204,6 +205,7 @@ export interface LiveRuntimeSnapshot {
 export interface IntegrationLiveSnapshot {
   diagnostic: IntegrationDiagnostic
   accounts: LiveRuntimeSnapshot[]
+  lives: LiveSnapshot
 }
 
 const sum = (values: Record<string, number>) => Object.values(values).reduce((total, value) => total + value, 0)
@@ -252,7 +254,7 @@ export const accountFromLive = (snapshot: LiveRuntimeSnapshot): AccountView => {
       hunt_options: snapshot.revisions.hunt_options,
     } satisfies AccountDomainRevisions,
     level: active?.level ?? state.level ?? 0,
-    trainerLevel: state.level ?? 0,
+    trainerLevel: state.level ?? undefined,
     activePokemon: active
       ? {
           id: String(active.id),
@@ -429,7 +431,7 @@ export const accountFromRuntime = (snapshot: RuntimeSnapshot): AccountView => {
     mode: account.mode,
     runtime: account.runtime,
     level: active?.level ?? state.level ?? 0,
-    trainerLevel: state.level ?? 0,
+    trainerLevel: state.level ?? undefined,
     activePokemon: active ? {
       id: String(active.id), name: active.nome, level: active.level,
       speciesId: active.species_id, quality: active.quality, potency: active.potencia,

@@ -13,6 +13,13 @@ pub enum ProtocolDirection {
     ServerToClient,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ProtocolTransport {
+    Browser,
+    Background,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolFrame {

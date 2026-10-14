@@ -1,5 +1,7 @@
 #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
 use crate::mobile::{MobileAccountProjection, MobileSnapshot};
+#[cfg(debug_assertions)]
+use crate::protocol_tap::DevProtocolTap;
 use crate::{
     connection::BackgroundConnection,
     domain::{
@@ -7,11 +9,12 @@ use crate::{
         AccountHuntSpecies, AccountInventoryEntry, AccountLiveHunt, AccountLiveMetrics,
         AccountLiveSnapshot, AccountLiveState, AccountMode, AccountRecord, AccountRuntimeState,
         AccountSnapshot, AccountState, AutoBuyKind, AutoBuyRule, CaptureMode, ConnectionOwner,
-        ConnectionStatus, HuntSession, HuntTimerState, MAX_ACCOUNTS, PendingNavigationIntent,
-        Pokemon, PotionUsageSource, VersionedAccountRead, WildPokemon,
+        ConnectionStatus, HuntSession, HuntTimerState, KickOfficialChannel, LivesSnapshot,
+        MAX_ACCOUNTS, PendingNavigationIntent, Pokemon, PotionUsageSource, TwitchLiveChannel,
+        VersionedAccountRead, WildPokemon,
     },
     events::EventBus,
-    inspector::{self, ProtocolDirection, ProtocolFrame},
+    inspector::{self, ProtocolDirection, ProtocolFrame, ProtocolTransport},
     market::MarketSignal,
     metrics::MetricsEngine,
     protocol::{
@@ -23,7 +26,7 @@ use serde_json::{Map, Value};
 #[cfg(debug_assertions)]
 use std::sync::atomic::AtomicU64 as ValidationAtomicU64;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -1453,6 +1456,7 @@ impl AccountRuntime {
 #[derive(Clone)]
 pub struct AccountManager {
     runtimes: Arc<Mutex<HashMap<String, AccountRuntime>>>,
+    lives: Arc<Mutex<SharedLivesState>>,
     data_revision_clock: Arc<AtomicU64>,
     #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
     mobile_snapshot_revision: Arc<AtomicU64>,
@@ -1460,6 +1464,10 @@ pub struct AccountManager {
     mobile_changes: watch::Sender<u64>,
     lifecycle_locks: Arc<Mutex<HashMap<String, AccountLifecycleControl>>>,
     inspector_enabled: Arc<AtomicBool>,
+    #[cfg(debug_assertions)]
+    dev_protocol_tap_enabled: Arc<AtomicBool>,
+    #[cfg(debug_assertions)]
+    dev_protocol_tap: Arc<Mutex<Option<DevProtocolTap>>>,
     shutting_down: Arc<AtomicBool>,
     market_signals: broadcast::Sender<MarketSignal>,
     hunt_timer_notifications: watch::Sender<u64>,
@@ -1468,6 +1476,100 @@ pub struct AccountManager {
     validation_read_only: Arc<AtomicBool>,
     #[cfg(debug_assertions)]
     validation_command_counters: Arc<ValidationCommandCounters>,
+}
+
+#[derive(Default)]
+struct SharedLivesState {
+    providers: BTreeMap<String, LivesProviderState>,
+    selected_source: Option<String>,
+}
+
+#[derive(Default, Clone, PartialEq, Eq)]
+struct LivesProviderState {
+    twitch: Option<Vec<TwitchLiveChannel>>,
+    kick: Option<Vec<KickOfficialChannel>>,
+    updated_at: Option<u64>,
+}
+
+#[derive(Default)]
+struct LivesPatch {
+    twitch: Option<Vec<TwitchLiveChannel>>,
+    kick: Option<Vec<KickOfficialChannel>>,
+}
+
+impl LivesPatch {
+    fn from_frame(frame: &ServerFrame) -> Option<Self> {
+        let state = match frame {
+            ServerFrame::Welcome(welcome) => &welcome.estado,
+            ServerFrame::State(state) => &state.estado,
+            _ => return None,
+        };
+        let twitch = state
+            .twitch
+            .as_ref()
+            .and_then(|platform| platform.lives.as_ref())
+            .map(|items| project_twitch_lives(items));
+        let kick = state
+            .kick
+            .as_ref()
+            .and_then(|platform| platform.officials.as_ref())
+            .map(|items| project_kick_lives(items));
+        (twitch.is_some() || kick.is_some()).then_some(Self { twitch, kick })
+    }
+}
+
+fn project_twitch_lives(items: &[crate::protocol::RemoteTwitchLive]) -> Vec<TwitchLiveChannel> {
+    let mut seen = HashSet::new();
+    items
+        .iter()
+        .filter(|item| !item.login.trim().is_empty() && seen.insert(item.login.to_lowercase()))
+        .map(|item| TwitchLiveChannel {
+            login: item.login.clone(),
+            name: item.name.clone(),
+            viewers: item.viewers,
+        })
+        .collect()
+}
+
+fn project_kick_lives(items: &[crate::protocol::RemoteKickOfficial]) -> Vec<KickOfficialChannel> {
+    let mut seen = HashSet::new();
+    items
+        .iter()
+        .filter(|item| !item.slug.trim().is_empty() && seen.insert(item.slug.to_lowercase()))
+        .map(|item| KickOfficialChannel {
+            slug: item.slug.clone(),
+            name: item.name.clone(),
+            online: item.live,
+            viewers: item.viewers,
+            active: item.ativo,
+        })
+        .collect()
+}
+
+impl SharedLivesState {
+    fn ingest(&mut self, account_id: &str, patch: LivesPatch, updated_at: u64) {
+        let provider = self.providers.entry(account_id.to_owned()).or_default();
+        if let Some(twitch) = patch.twitch {
+            provider.twitch = Some(twitch);
+        }
+        if let Some(kick) = patch.kick {
+            provider.kick = Some(kick);
+        }
+        provider.updated_at = Some(updated_at);
+    }
+
+    fn remove_account(&mut self, account_id: &str) {
+        self.providers.remove(account_id);
+        if self.selected_source.as_deref() == Some(account_id) {
+            self.selected_source = None;
+        }
+    }
+
+    fn has_data(&self, account_id: &str) -> bool {
+        self.providers
+            .get(account_id)
+            .is_some_and(|provider| provider.updated_at.is_some())
+    }
 }
 
 struct MobileChangeOnDrop(Option<watch::Sender<u64>>);
@@ -1505,6 +1607,7 @@ impl Default for AccountManager {
         let (mobile_changes, _) = watch::channel(0);
         Self {
             runtimes: Arc::new(Mutex::new(HashMap::new())),
+            lives: Arc::new(Mutex::new(SharedLivesState::default())),
             data_revision_clock: Arc::new(AtomicU64::new(0)),
             #[cfg(any(test, all(debug_assertions, feature = "mobile-local-server")))]
             mobile_snapshot_revision: Arc::new(AtomicU64::new(0)),
@@ -1512,6 +1615,10 @@ impl Default for AccountManager {
             mobile_changes,
             lifecycle_locks: Arc::new(Mutex::new(HashMap::new())),
             inspector_enabled: Arc::new(AtomicBool::new(false)),
+            #[cfg(debug_assertions)]
+            dev_protocol_tap_enabled: Arc::new(AtomicBool::new(false)),
+            #[cfg(debug_assertions)]
+            dev_protocol_tap: Arc::new(Mutex::new(None)),
             shutting_down: Arc::new(AtomicBool::new(false)),
             market_signals,
             hunt_timer_notifications,
@@ -1723,19 +1830,67 @@ impl AccountManager {
         }
     }
     /// A single atomic branch keeps Inspector-off WebSocket reception allocation-free.
-    pub fn record_protocol_frame(&self, account_id: &str, direction: ProtocolDirection, raw: &str) {
-        if !self.inspector_enabled.load(Ordering::Acquire) {
+    #[cfg(debug_assertions)]
+    pub fn configure_dev_protocol_tap(&self, tap: Option<DevProtocolTap>) {
+        let enabled = tap.is_some();
+        *self.dev_protocol_tap.lock() = tap;
+        self.dev_protocol_tap_enabled
+            .store(enabled, Ordering::Release);
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn shutdown_dev_protocol_tap(&self) {
+        self.dev_protocol_tap_enabled
+            .store(false, Ordering::Release);
+        if let Some(mut tap) = self.dev_protocol_tap.lock().take() {
+            tap.shutdown();
+        }
+    }
+
+    pub fn record_protocol_frame(
+        &self,
+        account_id: &str,
+        direction: ProtocolDirection,
+        _transport: ProtocolTransport,
+        raw: &str,
+    ) {
+        let inspector_enabled = self.inspector_enabled.load(Ordering::Acquire);
+        #[cfg(debug_assertions)]
+        let tap_enabled = self.dev_protocol_tap_enabled.load(Ordering::Acquire);
+        #[cfg(not(debug_assertions))]
+        let tap_enabled = false;
+        if !inspector_enabled && !tap_enabled {
             return;
         }
-        let frame = inspector::sanitized_frame(direction, raw);
-        let mut runtimes = self.runtimes.lock();
-        let Some(runtime) = runtimes.get_mut(account_id) else {
-            return;
+
+        let _tap_account_id: Option<String> = {
+            let mut runtimes = self.runtimes.lock();
+            let Some(runtime) = runtimes.get_mut(account_id) else {
+                return;
+            };
+            if inspector_enabled {
+                let frame = inspector::sanitized_frame(direction, raw);
+                if runtime.inspector_frames.len() == inspector::FRAME_CAPACITY {
+                    runtime.inspector_frames.pop_front();
+                }
+                runtime.inspector_frames.push_back(frame);
+            }
+            #[cfg(debug_assertions)]
+            if tap_enabled {
+                Some(account_id.to_owned())
+            } else {
+                None
+            }
+            #[cfg(not(debug_assertions))]
+            None
         };
-        if runtime.inspector_frames.len() == inspector::FRAME_CAPACITY {
-            runtime.inspector_frames.pop_front();
+
+        #[cfg(debug_assertions)]
+        if let Some(account_id) = _tap_account_id {
+            if let Some(tap) = self.dev_protocol_tap.lock().as_ref() {
+                tap.record(&account_id, direction, _transport, raw);
+            }
         }
-        runtime.inspector_frames.push_back(frame);
     }
     pub fn protocol_frames(&self, account_id: &str) -> Result<Vec<ProtocolFrame>, AccountError> {
         if !self.inspector_enabled.load(Ordering::Acquire) {
@@ -2273,6 +2428,7 @@ impl AccountManager {
         }
         drop(runtime);
         drop(runtimes);
+        self.lives.lock().remove_account(account_id);
         self.mark_mobile_changed();
         Ok(())
     }
@@ -2300,6 +2456,7 @@ impl AccountManager {
     }
     pub fn ingest(&self, account_id: &str, frame: ServerFrame) -> Result<(), AccountError> {
         let market_signal = MarketSignal::from_server_frame(account_id, &frame);
+        let lives_patch = LivesPatch::from_frame(&frame);
         let (hunt_timer_changed, hunt_session_changed) = {
             let mut runtimes = self.runtimes.lock();
             let runtime = runtimes
@@ -2315,6 +2472,9 @@ impl AccountManager {
             }
             (runtime.hunt_timer != previous_timer, hunt_session_changed)
         };
+        if let Some(patch) = lives_patch {
+            self.lives.lock().ingest(account_id, patch, now_ms());
+        }
         self.mark_mobile_changed();
         if hunt_timer_changed {
             self.hunt_timer_notifications
@@ -2812,6 +2972,80 @@ impl AccountManager {
             .values_mut()
             .map(AccountRuntime::live_snapshot)
             .collect()
+    }
+
+    /// Returns one shared Lives projection. The current source remains stable
+    /// while connected, including before its first Lives payload. On failover,
+    /// a new source with no cached payload produces empty lists rather than
+    /// mixing account data. With no connected source, the last manager-owned
+    /// source is retained and marked stale until it is removed.
+    pub fn lives_snapshot(&self) -> LivesSnapshot {
+        let runtimes = self.runtimes.lock();
+        let mut lives = self.lives.lock();
+        let eligible = |id: &str| {
+            runtimes.get(id).is_some_and(|runtime| {
+                runtime.account.status == ConnectionStatus::Online
+                    && matches!(
+                        &runtime.account.owner,
+                        &ConnectionOwner::Browser | &ConnectionOwner::Background
+                    )
+            })
+        };
+        let mut eligible_ids: Vec<_> = runtimes.keys().filter(|id| eligible(id)).cloned().collect();
+        eligible_ids.sort();
+
+        let current_source_exists = lives
+            .selected_source
+            .as_deref()
+            .is_some_and(|id| runtimes.contains_key(id));
+        let current_source_eligible = lives
+            .selected_source
+            .as_deref()
+            .is_some_and(|id| eligible(id));
+        if !current_source_exists {
+            lives.selected_source = eligible_ids.first().cloned().or_else(|| {
+                lives
+                    .providers
+                    .keys()
+                    .find(|id| runtimes.contains_key(*id) && lives.has_data(id))
+                    .cloned()
+            });
+        } else if !current_source_eligible && !eligible_ids.is_empty() {
+            lives.selected_source = eligible_ids.first().cloned();
+        } else if lives.selected_source.is_none() {
+            lives.selected_source = eligible_ids.first().cloned();
+        }
+
+        let Some(source_id) = lives.selected_source.clone() else {
+            return LivesSnapshot::default();
+        };
+        let Some(runtime) = runtimes.get(&source_id) else {
+            lives.selected_source = None;
+            return LivesSnapshot::default();
+        };
+        let online = eligible(&source_id);
+        let provider = lives.providers.get(&source_id);
+        let updated_at = provider.and_then(|provider| provider.updated_at);
+        let reconnect_requires_refresh =
+            runtime
+                .state
+                .last_reconnected_at_ms
+                .is_some_and(|reconnected_at| {
+                    updated_at.is_some_and(|updated| reconnected_at > updated)
+                });
+        LivesSnapshot {
+            source_account_id: Some(source_id),
+            source_account_nick: Some(runtime.account.nick.clone()),
+            source_transport: Some(runtime.account.owner.clone()),
+            updated_at,
+            stale: !online || reconnect_requires_refresh,
+            twitch: provider
+                .and_then(|provider| provider.twitch.clone())
+                .unwrap_or_default(),
+            kick: provider
+                .and_then(|provider| provider.kick.clone())
+                .unwrap_or_default(),
+        }
     }
     /// Small lifecycle-only metadata for automatic monitors. This must not
     /// call `snapshot()`, which clones all depot and hunt data.
@@ -3479,7 +3713,7 @@ pub fn new_record(id: String, nick: String, color: String) -> AccountRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::inspector::ProtocolDirection;
+    use crate::inspector::{ProtocolDirection, ProtocolTransport};
 
     #[test]
     fn four_account_limit_and_stable_ids_are_enforced() {
@@ -3541,6 +3775,252 @@ mod tests {
         }
         assert!(state.get("active_pokemon").is_some());
         assert!(state.get("active_hunt").is_some());
+    }
+
+    fn set_live_owner(manager: &AccountManager, account_id: &str, owner: ConnectionOwner) {
+        let mut runtimes = manager.runtimes.lock();
+        let runtime = runtimes.get_mut(account_id).unwrap();
+        runtime.account.status = ConnectionStatus::Online;
+        runtime.account.owner = owner;
+    }
+
+    fn ingest_live(manager: &AccountManager, account_id: &str, json: &str) {
+        manager
+            .ingest(account_id, ServerFrame::parse(json).unwrap())
+            .unwrap();
+    }
+
+    #[test]
+    fn shared_lives_merge_welcome_and_partial_platform_patches() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Alpha".into(), "#fff".into()))
+            .unwrap();
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"welcome","estado":{"twitch":{"lives":[{"login":"one","nome":"One","espectadores":12},{"login":"ONE","nome":"Duplicate","espectadores":99}],"oficiais":[{"login":"not_projected","nome":"Not Projected","bonus":true}]},"kick":{"oficiais":[{"slug":"kick-one","nome":"Kick One","aoVivo":true,"espectadores":7,"ativo":true}]}}}"#,
+        );
+        let unowned_welcome = manager.lives_snapshot();
+        assert_eq!(unowned_welcome.source_account_id.as_deref(), Some("a"));
+        assert!(unowned_welcome.stale);
+        set_live_owner(&manager, "a", ConnectionOwner::Browser);
+
+        let initial = manager.lives_snapshot();
+        assert_eq!(initial.source_account_id.as_deref(), Some("a"));
+        assert_eq!(initial.source_transport, Some(ConnectionOwner::Browser));
+        assert!(!initial.stale);
+        assert_eq!(initial.twitch.len(), 1);
+        assert_eq!(initial.twitch[0].viewers, 12);
+        assert_eq!(initial.kick[0].viewers, 7);
+
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"estado","estado":{"twitch":{"lives":[{"login":"one","nome":"One","espectadores":21}],"private":"ignored"}}}"#,
+        );
+        let twitch_patch = manager.lives_snapshot();
+        assert_eq!(twitch_patch.twitch[0].viewers, 21);
+        assert_eq!(twitch_patch.kick, initial.kick);
+
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"estado","estado":{"kick":{"oficiais":[{"slug":"kick-one","nome":"Kick One","aoVivo":true,"espectadores":18,"ativo":true}]}}}"#,
+        );
+        let kick_patch = manager.lives_snapshot();
+        assert_eq!(kick_patch.twitch, twitch_patch.twitch);
+        assert_eq!(kick_patch.kick[0].viewers, 18);
+        assert!(!kick_patch.stale);
+    }
+
+    #[test]
+    fn shared_lives_uses_background_owner_and_fails_over_then_retains_stale_source() {
+        let manager = AccountManager::default();
+        for id in ["a", "b"] {
+            manager
+                .add(new_record(id.into(), format!("Nick {id}"), "#fff".into()))
+                .unwrap();
+        }
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"welcome","estado":{"twitch":{"lives":[{"login":"alpha","nome":"Alpha Live","espectadores":1}]}}}"#,
+        );
+        ingest_live(
+            &manager,
+            "b",
+            r#"{"t":"welcome","estado":{"kick":{"oficiais":[{"slug":"beta","nome":"Beta Live","aoVivo":false,"espectadores":0,"ativo":true}]}}}"#,
+        );
+        set_live_owner(&manager, "a", ConnectionOwner::Browser);
+        set_live_owner(&manager, "b", ConnectionOwner::Background);
+        assert_eq!(
+            manager.lives_snapshot().source_account_id.as_deref(),
+            Some("a")
+        );
+
+        set_live_owner(&manager, "a", ConnectionOwner::None);
+        {
+            let mut runtimes = manager.runtimes.lock();
+            runtimes.get_mut("a").unwrap().account.status = ConnectionStatus::Offline;
+        }
+        let failover = manager.lives_snapshot();
+        assert_eq!(failover.source_account_id.as_deref(), Some("b"));
+        assert_eq!(failover.source_transport, Some(ConnectionOwner::Background));
+        assert!(!failover.stale);
+        assert!(failover.twitch.is_empty());
+        assert_eq!(failover.kick[0].slug, "beta");
+
+        {
+            let mut runtimes = manager.runtimes.lock();
+            runtimes.get_mut("b").unwrap().account.status = ConnectionStatus::Offline;
+            runtimes.get_mut("b").unwrap().account.owner = ConnectionOwner::None;
+        }
+        let retained = manager.lives_snapshot();
+        assert_eq!(retained.source_account_id.as_deref(), Some("b"));
+        assert!(retained.stale);
+        assert_eq!(retained.kick[0].slug, "beta");
+    }
+
+    #[test]
+    fn eligible_source_is_selected_before_its_first_lives_payload() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Alpha".into(), "#fff".into()))
+            .unwrap();
+        set_live_owner(&manager, "a", ConnectionOwner::Background);
+
+        let snapshot = manager.lives_snapshot();
+        assert_eq!(snapshot.source_account_id.as_deref(), Some("a"));
+        assert_eq!(snapshot.source_account_nick.as_deref(), Some("Alpha"));
+        assert_eq!(snapshot.source_transport, Some(ConnectionOwner::Background));
+        assert!(snapshot.twitch.is_empty());
+        assert!(snapshot.kick.is_empty());
+        assert_eq!(snapshot.updated_at, None);
+        assert!(!snapshot.stale);
+    }
+
+    #[test]
+    fn failover_to_connected_account_without_cache_clears_old_lists() {
+        let manager = AccountManager::default();
+        for id in ["a", "b"] {
+            manager
+                .add(new_record(id.into(), format!("Nick {id}"), "#fff".into()))
+                .unwrap();
+        }
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"welcome","estado":{"twitch":{"lives":[{"login":"alpha","nome":"Alpha","espectadores":11}]}}}"#,
+        );
+        set_live_owner(&manager, "a", ConnectionOwner::Browser);
+        set_live_owner(&manager, "b", ConnectionOwner::Background);
+        assert_eq!(
+            manager.lives_snapshot().source_account_id.as_deref(),
+            Some("a")
+        );
+
+        {
+            let mut runtimes = manager.runtimes.lock();
+            let source = runtimes.get_mut("a").unwrap();
+            source.account.status = ConnectionStatus::Offline;
+            source.account.owner = ConnectionOwner::None;
+        }
+        let failover = manager.lives_snapshot();
+        assert_eq!(failover.source_account_id.as_deref(), Some("b"));
+        assert_eq!(failover.source_account_nick.as_deref(), Some("Nick b"));
+        assert_eq!(failover.source_transport, Some(ConnectionOwner::Background));
+        assert!(failover.twitch.is_empty());
+        assert!(failover.kick.is_empty());
+        assert_eq!(failover.updated_at, None);
+        assert!(!failover.stale);
+    }
+
+    #[test]
+    fn reconnect_keeps_cached_lives_stale_until_a_new_lives_patch_arrives() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Alpha".into(), "#fff".into()))
+            .unwrap();
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"welcome","estado":{"twitch":{"lives":[{"login":"alpha","nome":"Alpha","espectadores":11}]}}}"#,
+        );
+        set_live_owner(&manager, "a", ConnectionOwner::Background);
+        let mut updated_at = now_ms();
+        {
+            let mut lives = manager.lives.lock();
+            lives.providers.get_mut("a").unwrap().updated_at = Some(updated_at);
+        }
+        {
+            let mut runtimes = manager.runtimes.lock();
+            runtimes.get_mut("a").unwrap().state.last_reconnected_at_ms =
+                Some(updated_at.saturating_add(10));
+        }
+        let after_reconnect = manager.lives_snapshot();
+        assert!(after_reconnect.stale);
+        assert_eq!(after_reconnect.twitch[0].viewers, 11);
+
+        // Model the reconnect time preceding the next accepted lives patch.
+        updated_at = now_ms().saturating_sub(20);
+        {
+            let mut lives = manager.lives.lock();
+            lives.providers.get_mut("a").unwrap().updated_at = Some(updated_at.saturating_sub(1));
+        }
+        {
+            let mut runtimes = manager.runtimes.lock();
+            runtimes.get_mut("a").unwrap().state.last_reconnected_at_ms = Some(updated_at);
+        }
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"estado","estado":{"twitch":{"lives":[{"login":"alpha","nome":"Alpha","espectadores":19}]}}}"#,
+        );
+        let refreshed = manager.lives_snapshot();
+        assert!(!refreshed.stale);
+        assert_eq!(refreshed.twitch[0].viewers, 19);
+    }
+
+    #[test]
+    fn shared_lives_without_an_account_is_empty_and_removal_clears_cached_source() {
+        let manager = AccountManager::default();
+        assert_eq!(manager.lives_snapshot(), LivesSnapshot::default());
+        manager
+            .add(new_record("a".into(), "Alpha".into(), "#fff".into()))
+            .unwrap();
+        ingest_live(
+            &manager,
+            "a",
+            r#"{"t":"welcome","estado":{"kick":{"oficiais":[]}}}"#,
+        );
+        set_live_owner(&manager, "a", ConnectionOwner::Browser);
+        assert_eq!(
+            manager.lives_snapshot().source_account_id.as_deref(),
+            Some("a")
+        );
+        manager.remove("a").unwrap();
+        assert_eq!(manager.lives_snapshot(), LivesSnapshot::default());
+    }
+
+    #[test]
+    fn shared_lives_projection_is_allowlisted_and_repeated_frames_do_not_duplicate_entries() {
+        let manager = AccountManager::default();
+        manager
+            .add(new_record("a".into(), "Alpha".into(), "#fff".into()))
+            .unwrap();
+        let frame = r#"{"t":"welcome","estado":{"twitch":{"lives":[{"login":"one","nome":"One","espectadores":12,"access_token":"secret"}],"oficiais":[{"login":"not_projected","nome":"Not Projected","bonus":true}]},"kick":{"oficiais":[]},"private":"secret"}}"#;
+        ingest_live(&manager, "a", frame);
+        ingest_live(&manager, "a", frame);
+        set_live_owner(&manager, "a", ConnectionOwner::Background);
+        let snapshot = manager.lives_snapshot();
+        assert_eq!(snapshot.twitch.len(), 1);
+        assert_eq!(snapshot.source_transport, Some(ConnectionOwner::Background));
+        let json = serde_json::to_string(&snapshot).unwrap();
+        assert!(!json.contains("access_token"));
+        assert!(!json.contains("secret"));
+        assert!(json.contains("viewers"));
+        assert!(json.contains("sourceAccountNick"));
     }
 
     #[test]
@@ -4446,6 +4926,7 @@ mod tests {
         manager.record_protocol_frame(
             "a",
             ProtocolDirection::ClientToServer,
+            ProtocolTransport::Background,
             r#"{"token":"must-not-buffer"}"#,
         );
         assert!(manager.protocol_frames("a").unwrap().is_empty());
@@ -4455,6 +4936,7 @@ mod tests {
             manager.record_protocol_frame(
                 "a",
                 ProtocolDirection::ServerToClient,
+                ProtocolTransport::Background,
                 &format!(r#"{{"n":{index},"token":"secret"}}"#),
             );
         }

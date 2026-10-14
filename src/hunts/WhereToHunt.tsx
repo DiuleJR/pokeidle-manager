@@ -17,7 +17,7 @@ import { PokemonAsset } from '../inventory/asset-components'
 import { ensureAccountDomain } from '../account-domains'
 import { selectVisibleAccounts, useAppStore } from '../stores/app-store'
 import type { AccountView, DepotPokemon } from '../types'
-import { estimateHunts, hasCompleteCalculationData, readHuntReference, type HuntEstimate, type HuntReference } from './calculator'
+import { estimateHunts, hasCompleteCalculationData, huntCalculationSignature, readHuntReference, type HuntEstimate, type HuntReference } from './calculator'
 
 type Ranking = 'trainer' | 'pokemon' | 'gold'
 const activePokemonStats = [
@@ -164,12 +164,20 @@ export function WhereToHunt() {
     }
   }, [accountIdForHunts, huntOptionsRevision, loadedHuntOptionsRevision])
 
-  const estimates = useMemo(() => {
+  const calculationSignature = account ? huntCalculationSignature(account) : ''
+  const allEstimates = useMemo(() => {
     if (!account || !reference) return []
-    const needle = query.trim().toLocaleLowerCase('pt-BR')
+    // The signature contains every account field used by estimateHunts; unrelated
+    // 1.2s live-snapshot changes should not rerun the combat simulation.
     return estimateHunts(account, reference)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calculationSignature, reference])
+  const regionsBySlug = useMemo(() => new Map((reference?.hunts ?? []).map((hunt) => [hunt.s, hunt.a])), [reference])
+  const estimates = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase('pt-BR')
+    return allEstimates
       .filter((result) => {
-        const canonicalRegion = reference.hunts.find((hunt) => hunt.s === result.hunt.s)?.a
+        const canonicalRegion = regionsBySlug.get(result.hunt.s)
         return (!needle || `${result.hunt.n} ${result.hunt.a}`.toLocaleLowerCase('pt-BR').includes(needle))
           && (region === 'all' || canonicalRegion === region)
       })
@@ -178,7 +186,7 @@ export function WhereToHunt() {
         : ranking === 'pokemon'
           ? right.xpPokemonPerHour - left.xpPokemonPerHour
           : right.xpTrainerPerHour - left.xpTrainerPerHour)
-  }, [account, query, ranking, reference, region])
+  }, [allEstimates, query, ranking, region, regionsBySlug])
   const regions = useMemo(() => [...new Set((reference?.hunts ?? []).map((hunt) => hunt.a))].sort(), [reference])
 
   const activePokemon = account ? activePokemonView(account) : null

@@ -927,6 +927,91 @@
   color: var(--game-gold);
 }
 
+.page.settings .interface-scale-card {
+  border-color: #a35c48;
+  background: linear-gradient(145deg, #59313a, #38212e 74%);
+}
+
+.page.settings .interface-scale-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.page.settings .interface-scale-heading h2 {
+  margin: 3px 0 0;
+  color: var(--game-text);
+}
+
+.page.settings .interface-scale-heading > p {
+  max-width: 330px;
+  margin: 0;
+  color: var(--game-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.page.settings .interface-scale-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.page.settings .interface-scale-options button {
+  min-width: 0;
+  min-height: 62px;
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #905142;
+  border-radius: var(--game-radius-control);
+  background: #2a1a28;
+  color: var(--game-text-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.page.settings .interface-scale-options button:hover,
+.page.settings .interface-scale-options button.selected {
+  border-color: #edc35f;
+  background: linear-gradient(145deg, #683773, #40254e);
+  color: #fff2c2;
+  box-shadow: 0 0 0 1px #f6d78273, inset 0 1px #fff0b75c;
+}
+
+.page.settings .interface-scale-options button:focus-visible {
+  outline: 2px solid var(--game-gold);
+  outline-offset: 2px;
+}
+
+.page.settings .interface-scale-options strong {
+  color: var(--game-gold);
+  font-size: 0.9rem;
+}
+
+.page.settings .interface-scale-options span {
+  overflow-wrap: anywhere;
+  color: var(--game-text-soft);
+  font-size: 0.65rem;
+  line-height: 1.25;
+}
+
+.page.settings .interface-scale-note {
+  margin: 0;
+  color: var(--game-text-soft);
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
+.page.settings .interface-scale-options button:hover span,
+.page.settings .interface-scale-options button.selected span {
+  color: #fff0c8;
+}
+
 .page.settings .protocol-inspector .protocol-frame {
   border-color: #895144;
   background: #2a1a28;
@@ -1045,7 +1130,16 @@
 }
 
 .shared-page-header-actions > .dashboard-actions {
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.shared-page-header-actions > .dashboard-actions > small {
+  flex-basis: 100%;
+  text-align: right;
 }
 
 .shared-page-header-actions .market-reader-status {
@@ -1082,6 +1176,180 @@
   grid-row: 1;
   min-height: 156px;
   margin: -22px -25px 0;
+}
+
+.dashboard .dashboard-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #a75f46;
+  border-radius: 7px;
+  background: #2b1b29;
+  box-shadow: inset 0 1px #140d16;
+}
+
+.dashboard .dashboard-view-toggle button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #e4c3a0;
+  background: transparent;
+  font: 800 0.66rem/1 'Cascadia Mono', Consolas, monospace;
+  cursor: pointer;
+}
+
+.dashboard .dashboard-view-toggle button[aria-pressed='true'] {
+  border-color: #f0b95f;
+  color: #fff2d6;
+  background: linear-gradient(180deg, #a84f91, #6b3572);
+  box-shadow: 0 2px #351c34, inset 0 1px #ffe4a755;
+}
+
+.dashboard .dashboard-view-toggle button:focus-visible {
+  outline: 3px solid #ffe477;
+  outline-offset: 2px;
+}
+
+.dashboard-session-body {
+  min-width: 0;
+  min-height: 0;
+  margin-top: 5px;
+  padding: 10px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  border: 1px solid #a75f46;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #5f493429, transparent 60%), #2a1a27;
+}
+
+.dashboard-session-time {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #d2965c61;
+  color: #ffe1a8;
+  font-size: 0.63rem;
+  font-weight: 700;
+}
+
+.dashboard-session-time strong {
+  color: #fff1d4;
+  font: 800 1.05rem/1 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+.dashboard-session-drops,
+.dashboard-session-shinies {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.dashboard-session-drops {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-content: center;
+}
+
+.dashboard-session-drops > span,
+.dashboard-session-shinies > span {
+  min-width: 0;
+  padding: 6px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border: 1px solid #a75f466b;
+  border-radius: 5px;
+  background: #201521;
+  text-align: center;
+}
+
+.dashboard-session-drops > .dashboard-session-drop {
+  gap: 3px;
+  padding: 5px 3px;
+}
+
+.dashboard-session-drop-sprite {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+}
+
+.dashboard-session-drop-sprite .resolved-asset,
+.dashboard-session-drop-sprite .asset-fallback {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.dashboard-session-drop-sprite[data-has-drop='false'] {
+  filter: grayscale(1);
+  opacity: 0.46;
+}
+
+.dashboard-session-drops small,
+.dashboard-session-shinies small {
+  overflow: hidden;
+  color: #e1bb8e;
+  font: 700 0.53rem/1.2 'Cascadia Mono', Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-session-drops strong,
+.dashboard-session-shinies strong {
+  color: #fff3df;
+  font: 800 0.88rem/1 'Cascadia Mono', Consolas, monospace;
+}
+
+.dashboard-session-shinies {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.market-current-price {
+  color: #d1b18f;
+  font-size: 0.65rem;
+}
+
+.market-rule-editor .market-current-price-above {
+  overflow: hidden;
+  color: #a9c7d8;
+  font: 500 0.62rem/1 'Segoe UI', sans-serif;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.market-current-price-above[data-state='available'] {
+  color: #7de0a2;
+}
+
+.market-current-price-above[data-state='stale'] {
+  color: #f0c879;
+}
+
+.market-page .market-current-price-value dd {
+  color: #ffe0a0;
+}
+
+.market-page .market-current-price-stale dd,
+.market-page .market-current-price-unknown dd,
+.market-page .market-current-price-not-loaded dd {
+  color: #cfbcae;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.68rem;
+}
+
+.market-page .market-current-price-no-offer dd {
+  color: #c5a5a5;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.68rem;
 }
 
 .dashboard {

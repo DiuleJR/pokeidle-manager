@@ -19,6 +19,7 @@ tmp/
 temp/
 logs/
 *.log
+**/protocol-tap-*.jsonl
 *.db
 *.db-*
 *.sqlite

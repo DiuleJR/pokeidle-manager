@@ -98,6 +98,8 @@ pub struct RemoteState {
     pub guild: Option<RemoteGuildState>,
     #[serde(rename = "twitch")]
     pub twitch: Option<RemoteTwitchState>,
+    #[serde(rename = "kick")]
+    pub kick: Option<RemoteKickState>,
     #[serde(rename = "huntSlug")]
     pub hunt_slug: Option<String>,
     #[serde(rename = "noCentro")]
@@ -138,6 +140,46 @@ pub struct RemoteTwitchState {
     #[serde(rename = "pctAtual")]
     pub current_pct: Option<f64>,
     pub pct: Option<f64>,
+    /// Live directory fields are observed on both `welcome.estado` and
+    /// incremental `estado` patches. Keep them typed and allowlisted so
+    /// unrelated/private properties in the platform object are ignored.
+    #[serde(rename = "lives")]
+    pub lives: Option<Vec<RemoteTwitchLive>>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct RemoteTwitchLive {
+    #[serde(default)]
+    pub login: String,
+    #[serde(default)]
+    #[serde(rename = "nome")]
+    pub name: String,
+    #[serde(default)]
+    #[serde(rename = "espectadores")]
+    pub viewers: u64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct RemoteKickState {
+    #[serde(rename = "oficiais")]
+    pub officials: Option<Vec<RemoteKickOfficial>>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct RemoteKickOfficial {
+    #[serde(default)]
+    pub slug: String,
+    #[serde(default)]
+    #[serde(rename = "nome")]
+    pub name: String,
+    #[serde(default)]
+    #[serde(rename = "aoVivo")]
+    pub live: bool,
+    #[serde(default)]
+    #[serde(rename = "espectadores")]
+    pub viewers: u64,
+    #[serde(default)]
+    pub ativo: bool,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RemoteHunt {
@@ -473,6 +515,35 @@ mod tests {
         };
         assert_eq!(welcome.estado.orbs, Some(7));
         assert_eq!(welcome.estado.diamonds, Some(91));
+    }
+
+    #[test]
+    fn lives_platform_payloads_parse_allowlisted_fields_and_tolerate_extras() {
+        let frame = ServerFrame::parse(
+            r#"{"t":"welcome","estado":{"twitch":{"lives":[{"login":"channel","nome":"Channel","espectadores":42,"credential":"ignored"}],"oficiais":[{"login":"not_projected","nome":"Not Projected","bonus":true}],"private":"ignored"},"kick":{"oficiais":[{"slug":"kick-channel","nome":"Kick Channel","aoVivo":true,"espectadores":17,"ativo":true,"token":"ignored"}],"private":"ignored"}}}"#,
+        )
+        .unwrap();
+        let ServerFrame::Welcome(welcome) = frame else {
+            panic!("expected welcome")
+        };
+        let twitch = welcome.estado.twitch.unwrap();
+        assert_eq!(twitch.lives.unwrap()[0].viewers, 42);
+        let kick = welcome.estado.kick.unwrap();
+        assert!(kick.officials.unwrap()[0].live);
+    }
+
+    #[test]
+    fn lives_fields_are_optional_for_partial_estado_patches() {
+        let frame = ServerFrame::parse(
+            r#"{"t":"estado","estado":{"twitch":{"lives":[{"login":"channel","future":"ignored"}],"future":"ignored"},"future":"ignored"}}"#,
+        )
+        .unwrap();
+        let ServerFrame::State(state) = frame else {
+            panic!("expected state patch")
+        };
+        let twitch = state.estado.twitch.unwrap();
+        assert_eq!(twitch.lives.unwrap()[0].viewers, 0);
+        assert!(state.estado.kick.is_none());
     }
     #[test]
     fn hello_never_exposes_token_in_debug() {

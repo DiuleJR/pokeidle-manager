@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mockAccounts } from '../mocks/accounts'
+import { emptyLiveSnapshot } from '../lives/types'
 import type { AccountView, DepotPokemon, InventoryItem } from '../types'
 import { useAppStore } from './app-store'
 
@@ -12,11 +13,39 @@ const makeLiveAccount = (
   inventory: [],
   huntOptions: [],
 })
+describe('app settings', () => {
+  it('defaults the interface scale to automatic', () => {
+    expect(useAppStore.getState().settings.interfaceScale).toBe('auto')
+  })
+
+  it('hydrates the persisted interface scale', () => {
+    useAppStore.getState().hydratePersistedSettings({
+      minimizeToTray: false,
+      gameUrl: 'https://pokeidle.io/app',
+      startupBrowserConcurrency: 2,
+      interfaceScale: '80',
+    })
+
+    expect(useAppStore.getState().settings).toMatchObject({
+      minimizeToTray: false,
+      startupBrowserConcurrency: 2,
+      interfaceScale: '80',
+    })
+  })
+
+  it('updates the interface scale through the typed settings action', () => {
+    useAppStore.getState().setSetting('interfaceScale', '75')
+
+    expect(useAppStore.getState().settings.interfaceScale).toBe('75')
+  })
+})
+
 describe('real account domain cache', () => {
   beforeEach(() => {
     useAppStore.setState((state) => ({
       ...state,
       real: { accounts: [], domains: {} },
+      lives: emptyLiveSnapshot,
       ui: { ...state.ui, selectedIds: [] },
     }))
   })
@@ -29,6 +58,45 @@ describe('real account domain cache', () => {
     useAppStore.getState().setRealAccounts([makeLiveAccount()])
 
     expect(useAppStore.getState()).toBe(previous)
+  })
+
+  it('does not publish a new store state for an unchanged lives snapshot', () => {
+    const snapshot = {
+      ...emptyLiveSnapshot,
+      updatedAt: 1_797_000_000_000,
+      sourceAccountId: 'account-1',
+      sourceAccountNick: 'ContaTeste',
+      sourceTransport: 'browser' as const,
+      twitch: [{ login: 'trainer_one', name: 'TrainerOne', viewers: 125 }],
+    }
+    useAppStore.getState().setLivesSnapshot(snapshot)
+    const previous = useAppStore.getState()
+
+    useAppStore.getState().setLivesSnapshot({ ...snapshot, twitch: [...snapshot.twitch] })
+
+    expect(useAppStore.getState()).toBe(previous)
+  })
+
+  it('publishes viewer changes without changing account state', () => {
+    const snapshot = {
+      ...emptyLiveSnapshot,
+      updatedAt: 1_797_000_000_000,
+      sourceAccountId: 'account-1',
+      sourceAccountNick: 'ContaTeste',
+      sourceTransport: 'background' as const,
+      twitch: [{ login: 'trainer_one', name: 'TrainerOne', viewers: 125 }],
+    }
+    useAppStore.getState().setLivesSnapshot(snapshot)
+    const accountsBefore = useAppStore.getState().real.accounts
+
+    useAppStore.getState().setLivesSnapshot({
+      ...snapshot,
+      updatedAt: snapshot.updatedAt! + 1_000,
+      twitch: [{ ...snapshot.twitch[0], viewers: 126 }],
+    })
+
+    expect(useAppStore.getState().lives.twitch[0].viewers).toBe(126)
+    expect(useAppStore.getState().real.accounts).toBe(accountsBefore)
   })
 
   it('preserves loaded domain references across unchanged summary revisions', () => {
