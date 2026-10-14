@@ -16,6 +16,9 @@ export type MarketSummary = {
   units: number
   minGold: number | null
   minOrb: number | null
+  minGoldKnown: boolean
+  minOrbKnown: boolean
+  observedAt: number
 }
 export type MarketSniperRule = {
   id: string
@@ -318,12 +321,15 @@ export interface DepotLocks {
   autoLockP5: boolean
 }
 
+export type InterfaceScale = 'auto' | '100' | '90' | '80' | '75'
+
 export interface AppSettings {
   mockMode: boolean
   developerMode: boolean
   minimizeToTray: boolean
   gameUrl: string
   startupBrowserConcurrency: number
+  interfaceScale: InterfaceScale
 }
 
 export type Page =
@@ -331,6 +337,7 @@ export type Page =
   | 'Automações'
   | 'Inventários'
   | 'Mercado'
+  | 'Lives'
   | 'Onde Caçar'
   | 'Configurações'
   | 'Comunidade'

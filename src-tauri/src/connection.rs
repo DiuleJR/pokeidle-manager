@@ -2,7 +2,7 @@
 use crate::{
     accounts::AccountManager,
     domain::AccountRuntimeState,
-    inspector::ProtocolDirection,
+    inspector::{ProtocolDirection, ProtocolTransport},
     protocol::{ClientFrame, Hello, ServerFrame},
 };
 use futures_util::{SinkExt, StreamExt};
@@ -206,6 +206,7 @@ impl ConnectionManager {
         accounts.record_protocol_frame(
             &bootstrap.account_id,
             ProtocolDirection::ClientToServer,
+            ProtocolTransport::Background,
             &hello,
         );
         let welcome = tokio::time::timeout(Duration::from_secs(15), async {
@@ -216,6 +217,7 @@ impl ConnectionManager {
                     accounts.record_protocol_frame(
                         &bootstrap.account_id,
                         ProtocolDirection::ServerToClient,
+                        ProtocolTransport::Background,
                         &payload,
                     );
                     let frame = ServerFrame::parse(&payload)
@@ -304,6 +306,7 @@ impl ConnectionManager {
                                     receiver_accounts.record_protocol_frame(
                                         &receiver_bootstrap.account_id,
                                         ProtocolDirection::ClientToServer,
+                                        ProtocolTransport::Background,
                                         &payload,
                                     );
                                 }
@@ -316,6 +319,7 @@ impl ConnectionManager {
                                 receiver_accounts.record_protocol_frame(
                                     &receiver_bootstrap.account_id,
                                     ProtocolDirection::ServerToClient,
+                                    ProtocolTransport::Background,
                                     &payload,
                                 );
                                 if let Ok(frame) = ServerFrame::parse(&payload) {

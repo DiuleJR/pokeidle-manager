@@ -19,6 +19,9 @@ mod mobile_server;
 mod mock;
 mod persistence;
 mod protocol;
+#[cfg(debug_assertions)]
+mod protocol_tap;
+mod window_bounds;
 
 use accounts::AccountManager;
 use connection::ConnectionManager;
@@ -28,6 +31,8 @@ use domain::{
     ConnectionStatus, HuntSession, HuntTimerState, MAX_ACCOUNTS, VersionedAccountRead,
 };
 use parking_lot::Mutex;
+#[cfg(debug_assertions)]
+use protocol_tap::DevProtocolTap;
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -77,6 +82,8 @@ struct PersistedSettings {
     game_url: String,
     #[serde(default = "default_startup_browser_concurrency")]
     startup_browser_concurrency: u8,
+    #[serde(default)]
+    interface_scale: window_bounds::UiScalePreference,
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct LocalAutomationPreferences {
@@ -94,6 +101,7 @@ impl Default for PersistedSettings {
             minimize_to_tray: true,
             game_url: DEFAULT_GAME_URL.into(),
             startup_browser_concurrency: default_startup_browser_concurrency(),
+            interface_scale: window_bounds::UiScalePreference::default(),
         }
     }
 }
@@ -125,6 +133,7 @@ struct AppCore {
     lifecycle: community::ApplicationLifecycle,
     accounts: AccountManager,
     settings: Arc<Mutex<PersistedSettings>>,
+    interface_scale_requests: tokio::sync::watch::Sender<window_bounds::ScaleRequest>,
     database: Arc<Mutex<Connection>>,
     app_data_dir: PathBuf,
     diagnostic: Arc<Mutex<browser::IntegrationDiagnostic>>,
@@ -132,6 +141,8 @@ struct AppCore {
     market: market::MarketRuntime,
     bootstrap_gate: Arc<Semaphore>,
     bootstrap_scheduled: Arc<AtomicBool>,
+    dev_protocol_tap_account: Option<String>,
+    dev_protocol_tap_requested: bool,
     #[cfg(all(debug_assertions, feature = "mobile-local-server"))]
     mobile_bridge: Arc<Mutex<Option<MobileBridgeRuntime>>>,
 }
@@ -188,6 +199,7 @@ impl AppCore {
         database: Connection,
         app_data_dir: PathBuf,
         lifecycle: community::ApplicationLifecycle,
+        interface_scale_requests: tokio::sync::watch::Sender<window_bounds::ScaleRequest>,
     ) -> Result<Self, rusqlite::Error> {
         startup_mark("AppCore construction start");
         startup_mark("app settings load start");
@@ -234,10 +246,12 @@ impl AppCore {
         let assets = assets::GameAssetService::new(&app_data_dir)
             .map_err(|_| rusqlite::Error::InvalidQuery)?;
         startup_mark("asset service setup end");
-        let core = Self {
+        #[allow(unused_mut)]
+        let mut core = Self {
             lifecycle,
             accounts: accounts.clone(),
             settings: Arc::new(Mutex::new(settings)),
+            interface_scale_requests,
             market,
             database,
             app_data_dir: app_data_dir.clone(),
@@ -247,9 +261,32 @@ impl AppCore {
             // preference applies at the next startup, never to tasks already running.
             bootstrap_gate: Arc::new(Semaphore::new(startup_bootstrap_concurrency)),
             bootstrap_scheduled: Arc::new(AtomicBool::new(false)),
+            dev_protocol_tap_account: None,
+            dev_protocol_tap_requested: false,
             #[cfg(all(debug_assertions, feature = "mobile-local-server"))]
             mobile_bridge: Arc::new(Mutex::new(None)),
         };
+        #[cfg(debug_assertions)]
+        {
+            core.dev_protocol_tap_requested = DevProtocolTap::is_requested();
+            match DevProtocolTap::from_env(&app_data_dir, &accounts) {
+                Ok(Some(tap)) => {
+                    let account_id = tap
+                        .account_id()
+                        .expect("a validated dev protocol tap must be bound to an account")
+                        .to_owned();
+                    core.dev_protocol_tap_account = Some(account_id);
+                    tracing::warn!(path = %tap.path().display(), "DEV protocol tap enabled; output is local and allowlisted");
+                    // Instrumented startup is scoped to one saved account;
+                    // other Browser/Background settings remain unchanged.
+                    core.accounts.configure_dev_protocol_tap(Some(tap));
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(%error, "DEV protocol tap unavailable; automatic account bootstrap is disabled")
+                }
+            }
+        }
         startup_mark("AppCore construction end");
         Ok(core)
     }
@@ -264,6 +301,8 @@ impl AppCore {
         persist_pending_hunt_session_changes_sync(self);
         self.market.shutdown();
         self.accounts.stop_all();
+        #[cfg(debug_assertions)]
+        self.accounts.shutdown_dev_protocol_tap();
         let _ = self.database.lock().execute_batch("PRAGMA optimize;");
     }
 
@@ -647,9 +686,20 @@ fn schedule_restored_bootstraps(core: &AppCore) -> Vec<AccountLiveSnapshot> {
     if core.bootstrap_scheduled.swap(true, Ordering::AcqRel) {
         return core.accounts.live_snapshots();
     }
+    if core.dev_protocol_tap_requested && core.dev_protocol_tap_account.is_none() {
+        tracing::warn!(
+            "DEV protocol tap was requested but no unique saved target account is available; automatic account bootstrap remains disabled"
+        );
+        return core.accounts.live_snapshots();
+    }
     start_session_recovery_monitor(core.clone());
     startup_mark("frontend first paint; account bootstraps scheduling");
-    for account_id in core.accounts.ids() {
+    let selected_account = core.dev_protocol_tap_account.as_deref();
+    for (account, _) in core.accounts.runtime_metadata() {
+        if selected_account.is_some_and(|selected| selected != account.id) {
+            continue;
+        }
+        let account_id = account.id;
         let _ = core
             .accounts
             .transition(&account_id, AccountRuntimeState::BrowserBootstrap);
@@ -670,6 +720,9 @@ fn schedule_restored_bootstraps(core: &AppCore) -> Vec<AccountLiveSnapshot> {
 /// bootstraps; if it cannot authenticate, start_observer moves the account to
 /// LoginRequired and this monitor will not retry until another rejection.
 fn start_session_recovery_monitor(core: AppCore) {
+    if core.dev_protocol_tap_requested && core.dev_protocol_tap_account.is_none() {
+        return;
+    }
     let cancellation = core.lifecycle.token();
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
@@ -681,6 +734,13 @@ fn start_session_recovery_monitor(core: AppCore) {
             }
             for (account, _) in core.accounts.runtime_metadata() {
                 let account_id = account.id;
+                if core
+                    .dev_protocol_tap_account
+                    .as_deref()
+                    .is_some_and(|selected| selected != account_id)
+                {
+                    continue;
+                }
                 if account.status == ConnectionStatus::Online {
                     // A confirmed online session begins a new recovery cycle.
                     silent_login_attempted.remove(&account_id);
@@ -1158,16 +1218,64 @@ fn load_settings(database: &Connection) -> Result<PersistedSettings, rusqlite::E
             .parse::<u8>()
             .unwrap_or_else(|_| default_startup_browser_concurrency());
     }
+    if let Some(value) = database
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = 'interface_scale'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+    {
+        settings.interface_scale = parse_interface_scale(&value);
+    }
     Ok(settings.normalized())
 }
+
+fn parse_interface_scale(value: &str) -> window_bounds::UiScalePreference {
+    match value {
+        "100" => window_bounds::UiScalePreference::Percent100,
+        "90" => window_bounds::UiScalePreference::Percent90,
+        "80" => window_bounds::UiScalePreference::Percent80,
+        "75" => window_bounds::UiScalePreference::Percent75,
+        _ => window_bounds::UiScalePreference::Auto,
+    }
+}
+
+fn interface_scale_value(value: window_bounds::UiScalePreference) -> &'static str {
+    match value {
+        window_bounds::UiScalePreference::Auto => "auto",
+        window_bounds::UiScalePreference::Percent100 => "100",
+        window_bounds::UiScalePreference::Percent90 => "90",
+        window_bounds::UiScalePreference::Percent80 => "80",
+        window_bounds::UiScalePreference::Percent75 => "75",
+    }
+}
+
 fn save_settings(core: &AppCore, settings: PersistedSettings) -> Result<(), String> {
     let settings = settings.normalized();
     let database = core.database.lock();
     database.execute("INSERT INTO app_settings(key, value) VALUES ('minimize_to_tray', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [settings.minimize_to_tray.to_string()]).map_err(|error| error.to_string())?;
     database.execute("INSERT INTO app_settings(key, value) VALUES ('game_url', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [&settings.game_url]).map_err(|error| error.to_string())?;
     database.execute("INSERT INTO app_settings(key, value) VALUES ('startup_browser_concurrency', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [settings.startup_browser_concurrency.to_string()]).map_err(|error| error.to_string())?;
-    *core.settings.lock() = settings;
+    let mut current = core.settings.lock();
+    current.minimize_to_tray = settings.minimize_to_tray;
+    current.game_url = settings.game_url;
+    current.startup_browser_concurrency = settings.startup_browser_concurrency;
     Ok(())
+}
+
+fn persist_interface_scale(
+    core: &AppCore,
+    preference: window_bounds::UiScalePreference,
+) -> Result<(), String> {
+    let database = core.database.lock();
+    database
+        .execute(
+            "INSERT INTO app_settings(key, value) VALUES ('interface_scale', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [interface_scale_value(preference)],
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 fn shutdown(app: &tauri::AppHandle) {
     if let Some(lifecycle) = app.try_state::<community::ApplicationLifecycle>() {
@@ -1175,6 +1283,10 @@ fn shutdown(app: &tauri::AppHandle) {
     }
     if let Some(core) = app.try_state::<AppCore>() {
         let core = core.inner().clone();
+        let scale = core.settings.lock().interface_scale;
+        if let Err(error) = persist_interface_scale(&core, scale) {
+            tracing::warn!(%error, "could not flush interface scale during shutdown");
+        }
         core.shutdown();
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
@@ -1188,13 +1300,134 @@ fn shutdown(app: &tauri::AppHandle) {
     }
 }
 
+async fn run_interface_scale_worker(
+    app: tauri::AppHandle,
+    core: AppCore,
+    mut requests: tokio::sync::watch::Receiver<window_bounds::ScaleRequest>,
+    mut last_applied: Option<f64>,
+) {
+    let mut last_geometry_revision = 0_u64;
+    let mut persisted_preference_revision = 0_u64;
+    let lifecycle_token = core.lifecycle.token();
+
+    loop {
+        tokio::select! {
+            _ = lifecycle_token.cancelled() => return,
+            changed = requests.changed() => if changed.is_err() { return; },
+        }
+        loop {
+            let mut latest_request = window_bounds::ScaleRequest::default();
+            let mut processed_request = None;
+            window_bounds::apply_latest_scale_request(&mut requests, |request| {
+                latest_request = request;
+                let force_geometry = request.force_geometry_revision > last_geometry_revision;
+                last_geometry_revision =
+                    last_geometry_revision.max(request.force_geometry_revision);
+                let started = std::time::Instant::now();
+                let span = tracing::info_span!(
+                    "interface_scale_transition",
+                    request_revision = request.revision,
+                    preference_revision = request.preference_revision,
+                    preference = ?request.preference,
+                    thread = ?std::thread::current().id(),
+                );
+                let result = {
+                    let _entered = span.enter();
+                    match app.get_webview_window("main") {
+                        Some(webview) => window_bounds::apply_interface_scale(
+                            &webview,
+                            request.preference,
+                            &mut last_applied,
+                            force_geometry,
+                        ),
+                        None => Ok(false),
+                    }
+                };
+                match result {
+                    Ok(applied) => tracing::info!(
+                        request_revision = request.revision,
+                        preference = ?request.preference,
+                        applied,
+                        elapsed_ms = started.elapsed().as_millis(),
+                        "interface scale request finished"
+                    ),
+                    Err(error) => tracing::error!(
+                        request_revision = request.revision,
+                        preference = ?request.preference,
+                        elapsed_ms = started.elapsed().as_millis(),
+                        %error,
+                        "interface scale request failed"
+                    ),
+                }
+                processed_request = Some(request);
+                std::future::ready(())
+            })
+            .await;
+            let Some(request) = processed_request else {
+                break;
+            };
+            if lifecycle_token.is_cancelled() {
+                return;
+            }
+
+            if request.preference_revision > persisted_preference_revision {
+                tokio::select! {
+                    changed = requests.changed() => {
+                        if changed.is_ok() {
+                            continue;
+                        }
+                        break;
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(180)) => {}
+                    _ = lifecycle_token.cancelled() => return,
+                }
+                if requests.has_changed().unwrap_or(false) {
+                    continue;
+                }
+
+                let stable_request = latest_request;
+                if stable_request.preference_revision > persisted_preference_revision {
+                    let persist_started = std::time::Instant::now();
+                    let result = persist_interface_scale(&core, stable_request.preference);
+                    match result {
+                        Ok(()) => {
+                            tracing::info!(
+                                request_revision = stable_request.revision,
+                                preference = ?stable_request.preference,
+                                elapsed_ms = persist_started.elapsed().as_millis(),
+                                "interface scale preference persisted"
+                            );
+                            persisted_preference_revision = stable_request.preference_revision;
+                        }
+                        Err(error) => tracing::error!(
+                            request_revision = stable_request.revision,
+                            preference = ?stable_request.preference,
+                            elapsed_ms = persist_started.elapsed().as_millis(),
+                            %error,
+                            "interface scale persistence failed"
+                        ),
+                    }
+                }
+                if requests.has_changed().unwrap_or(false) {
+                    continue;
+                }
+            }
+
+            break;
+        }
+    }
+}
+
 async fn initialize_application_core(
     app: tauri::AppHandle,
     lifecycle: community::ApplicationLifecycle,
     readiness: AppCoreReadiness,
+    scale_request_sender: tokio::sync::watch::Sender<window_bounds::ScaleRequest>,
+    scale_requests: tokio::sync::watch::Receiver<window_bounds::ScaleRequest>,
 ) {
     let worker_app = app.clone();
     let worker_lifecycle = lifecycle.clone();
+    let worker_scale_sender = scale_request_sender.clone();
     let core_task = tauri::async_runtime::spawn_blocking(move || {
         startup_mark("app data directory preparation start");
         let data_dir = worker_app
@@ -1207,7 +1440,8 @@ async fn initialize_application_core(
         let database = persistence::open_and_migrate(&data_dir.join("pokeidle-manager.db"))
             .map_err(|error| error.to_string())?;
         startup_mark("SQLite open and migrations end");
-        AppCore::new(database, data_dir, worker_lifecycle).map_err(|error| error.to_string())
+        AppCore::new(database, data_dir, worker_lifecycle, worker_scale_sender)
+            .map_err(|error| error.to_string())
     });
 
     let core_result = core_task.await;
@@ -1221,6 +1455,9 @@ async fn initialize_application_core(
                 error: Some("Não foi possível preparar os dados do aplicativo.".into()),
             });
             let _ = app.emit("app-core-state-changed", readiness.snapshot());
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+            }
             return;
         }
         Err(error) => {
@@ -1231,6 +1468,9 @@ async fn initialize_application_core(
                 error: Some("Não foi possível preparar os dados do aplicativo.".into()),
             });
             let _ = app.emit("app-core-state-changed", readiness.snapshot());
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+            }
             return;
         }
     };
@@ -1239,9 +1479,32 @@ async fn initialize_application_core(
         core.shutdown();
         return;
     }
+    let mut last_applied_scale = None;
+    if let Some(webview) = app.get_webview_window("main") {
+        let preference = core.settings.lock().interface_scale;
+        let result = window_bounds::apply_current_interface_scale(
+            &webview,
+            preference,
+            &mut last_applied_scale,
+        );
+        if let Err(error) = result {
+            tracing::warn!(%error, "could not apply persisted interface scale at startup");
+        }
+        if let Err(error) = webview.show() {
+            tracing::warn!(%error, "could not show the main window after applying settings");
+        }
+    }
     if let Err(error) = core.start_mobile_bridge().await {
         tracing::warn!(%error, "could not start the local mobile bridge");
     }
+
+    let _ = app.manage(core.clone());
+    tauri::async_runtime::spawn(run_interface_scale_worker(
+        app.clone(),
+        core.clone(),
+        scale_requests,
+        last_applied_scale,
+    ));
 
     readiness.set(AppCoreStatus {
         ready: true,
@@ -1249,7 +1512,6 @@ async fn initialize_application_core(
     });
     startup_mark("application core ready");
     let _ = app.emit("app-core-state-changed", readiness.snapshot());
-    let _ = app.manage(core.clone());
     let mut hunt_timer_persistence = start_hunt_timer_persistence(core.clone());
     let lifecycle_token = lifecycle.token();
     tokio::select! {
@@ -1291,6 +1553,7 @@ fn integration_live_snapshot(
     Ok(IntegrationLiveSnapshot {
         diagnostic: state.diagnostic.lock().clone(),
         accounts: state.accounts.live_snapshots(),
+        lives: state.accounts.lives_snapshot(),
     })
 }
 #[derive(Clone, Serialize)]
@@ -1298,6 +1561,7 @@ fn integration_live_snapshot(
 struct IntegrationLiveSnapshot {
     diagnostic: browser::IntegrationDiagnostic,
     accounts: Vec<AccountLiveSnapshot>,
+    lives: domain::LivesSnapshot,
 }
 #[tauri::command]
 fn account_depot(
@@ -1893,6 +2157,38 @@ fn save_app_settings(
 }
 
 #[tauri::command]
+fn set_interface_scale(
+    scale: window_bounds::UiScalePreference,
+    state: tauri::State<'_, AppCore>,
+) -> Result<(), String> {
+    let core = state.inner();
+    let changed = {
+        let mut settings = core.settings.lock();
+        if settings.interface_scale == scale {
+            false
+        } else {
+            settings.interface_scale = scale;
+            true
+        }
+    };
+    if !changed {
+        tracing::debug!(preference = ?scale, "duplicate interface scale request ignored");
+        return Ok(());
+    }
+
+    let request =
+        window_bounds::request_scale_update(&core.interface_scale_requests, scale, false, true);
+    tracing::info!(
+        request_revision = request.revision,
+        preference_revision = request.preference_revision,
+        preference = ?scale,
+        thread = ?std::thread::current().id(),
+        "interface scale request queued"
+    );
+    Ok(())
+}
+
+#[tauri::command]
 fn app_core_status(readiness: tauri::State<'_, AppCoreReadiness>) -> AppCoreStatus {
     readiness.snapshot()
 }
@@ -1901,6 +2197,9 @@ pub fn run() {
     logging::init();
     let _ = APPLICATION_STARTED.set(Instant::now());
     startup_mark("application start");
+    let (scale_request_sender, scale_request_receiver) =
+        tokio::sync::watch::channel(window_bounds::ScaleRequest::default());
+    let mut scale_request_receiver = Some(scale_request_receiver);
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .on_page_load(|_, payload| {
@@ -1908,8 +2207,11 @@ pub fn run() {
                 startup_mark("webview page load started");
             }
         })
-        .setup(|app| {
+        .setup(move |app| {
             startup_mark("Tauri setup callback started");
+            if let Some(window) = app.get_webview_window("main") {
+                window_bounds::fit_initial_window(&window);
+            }
             let lifecycle = community::ApplicationLifecycle::default();
             let readiness = AppCoreReadiness::default();
             let _ = app.manage(lifecycle.clone());
@@ -1963,12 +2265,42 @@ pub fn run() {
             startup_mark("tray menu creation end");
             startup_mark("Tauri setup callback complete");
             let app_handle = app.handle().clone();
+            let scale_receiver = scale_request_receiver
+                .take()
+                .expect("application setup runs only once");
             tauri::async_runtime::spawn(initialize_application_core(
-                app_handle, lifecycle, readiness,
+                app_handle,
+                lifecycle,
+                readiness,
+                scale_request_sender.clone(),
+                scale_receiver,
             ));
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == "main"
+                && let Some(core) = window.app_handle().try_state::<AppCore>()
+            {
+                let preference = core.settings.lock().interface_scale;
+                let monitor_move = matches!(event, WindowEvent::Moved(_))
+                    && preference == window_bounds::UiScalePreference::Auto;
+                let dpi_change = matches!(event, WindowEvent::ScaleFactorChanged { .. });
+                if monitor_move || dpi_change {
+                    let request = window_bounds::request_scale_update(
+                        &core.interface_scale_requests,
+                        preference,
+                        monitor_move || dpi_change,
+                        false,
+                    );
+                    tracing::info!(
+                        request_revision = request.revision,
+                        preference = ?preference,
+                        event = if dpi_change { "dpi_change" } else { "window_moved" },
+                        thread = ?std::thread::current().id(),
+                        "interface scale monitor event queued"
+                    );
+                }
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let minimize_to_tray = window
                     .app_handle()
@@ -2024,6 +2356,7 @@ pub fn run() {
             enable_mock_mode,
             advance_mock_mode,
             settings_snapshot,
+            set_interface_scale,
             game_item_catalog,
             where_to_hunt_reference,
             resolve_game_asset,
@@ -2089,6 +2422,10 @@ mod tests {
         assert_eq!(
             PersistedSettings::default().startup_browser_concurrency,
             DEFAULT_STARTUP_BROWSER_CONCURRENCY
+        );
+        assert_eq!(
+            PersistedSettings::default().interface_scale,
+            window_bounds::UiScalePreference::Auto
         );
     }
 
@@ -2419,6 +2756,60 @@ mod tests {
                 .unwrap()
                 .startup_browser_concurrency,
             3
+        );
+    }
+
+    #[test]
+    fn interface_scale_presets_and_invalid_values_are_stable() {
+        use window_bounds::UiScalePreference as Scale;
+
+        for (stored, expected) in [
+            ("auto", Scale::Auto),
+            ("100", Scale::Percent100),
+            ("90", Scale::Percent90),
+            ("80", Scale::Percent80),
+            ("75", Scale::Percent75),
+        ] {
+            assert_eq!(parse_interface_scale(stored), expected);
+            assert_eq!(interface_scale_value(expected), stored);
+            assert_eq!(
+                serde_json::from_str::<Scale>(&format!("\"{stored}\"")).unwrap(),
+                expected
+            );
+        }
+        assert_eq!(parse_interface_scale("50"), Scale::Auto);
+        assert_eq!(parse_interface_scale("broken"), Scale::Auto);
+    }
+
+    #[test]
+    fn interface_scale_defaults_to_auto_and_loads_local_preference() {
+        let database = Connection::open_in_memory().unwrap();
+        persistence::migrate(&database).unwrap();
+        assert_eq!(
+            load_settings(&database).unwrap().interface_scale,
+            window_bounds::UiScalePreference::Auto
+        );
+
+        database
+            .execute(
+                "INSERT INTO app_settings(key, value) VALUES ('interface_scale', '75')",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            load_settings(&database).unwrap().interface_scale,
+            window_bounds::UiScalePreference::Percent75
+        );
+
+        database
+            .execute(
+                "UPDATE app_settings SET value = 'invalid' WHERE key = 'interface_scale'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            load_settings(&database).unwrap().interface_scale,
+            window_bounds::UiScalePreference::Auto
         );
     }
 

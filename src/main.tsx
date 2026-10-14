@@ -5,6 +5,7 @@ import App from './App'
 import './styles.css'
 import './assets/pokeidle-theme/desktop.css'
 import './assets/pokeidle-theme/routes.css'
+import './assets/pokeidle-theme/responsive-desktop.css'
 
 const startupDebug = import.meta.env.DEV && import.meta.env.MODE !== 'test'
 if (startupDebug) {

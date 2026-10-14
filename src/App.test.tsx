@@ -8,6 +8,7 @@ import { mergeMarketCatalog } from './inventory/market-catalog'
 import { mockAccounts } from './mocks/accounts'
 import { useAppStore } from './stores/app-store'
 import { useMarketStore } from './stores/market-store'
+import { emptyLiveSnapshot } from './lives/types'
 import type { MarketSnapshot } from './types'
 import type { IntegrationLiveSnapshot, IntegrationSnapshot } from './real-account'
 
@@ -40,7 +41,7 @@ function setupDesktop(
     if (command === 'app_core_status') return Promise.resolve({ ready: true, error: null })
     if (command === 'dashboard' || command === 'dashboard_live') return Promise.resolve([])
     if (command === 'market_snapshot') return Promise.resolve({})
-    if (command === 'settings_snapshot') return Promise.resolve({ minimizeToTray: true, gameUrl: 'https://pokeidle.io/app', startupBrowserConcurrency: 1 })
+    if (command === 'settings_snapshot') return Promise.resolve({ minimizeToTray: true, gameUrl: 'https://pokeidle.io/app', startupBrowserConcurrency: 1, interfaceScale: 'auto' })
     if (command === 'integration_live_snapshot')
       return Promise.resolve(toLiveSnapshot(onIntegrationSnapshot() as IntegrationSnapshot))
     return onCommand(command, payload)
@@ -102,6 +103,7 @@ function toLiveSnapshot(snapshot: IntegrationSnapshot): IntegrationLiveSnapshot 
       current_ball_quantity: 0,
       revisions: { depot: 1, inventory: 1, hunt_options: 1 },
     })),
+    lives: emptyLiveSnapshot,
   }
 }
 
@@ -198,6 +200,7 @@ describe('Pokeidle Manager UI', () => {
           minimizeToTray: true,
           gameUrl: 'https://pokeidle.io/app',
           startupBrowserConcurrency: 1,
+          interfaceScale: 'auto',
         })
       if (command === 'integration_live_snapshot')
         return Promise.resolve(
@@ -218,6 +221,46 @@ describe('Pokeidle Manager UI', () => {
     expect(host.textContent).toContain('Nenhuma conta cadastrada')
   })
 
+  it('does not overwrite the saved interface scale when the settings snapshot fails', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    listenMock.mockResolvedValue(() => {})
+    const diagnostic = {
+      state: 'Aguardando',
+      message: 'Nenhuma integração em andamento.',
+      accountId: null,
+    } as IntegrationSnapshot['diagnostic']
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'app_core_status') return Promise.resolve({ ready: true, error: null })
+      if (command === 'dashboard' || command === 'dashboard_live') return Promise.resolve([])
+      if (command === 'settings_snapshot') return Promise.reject(new Error('temporarily unavailable'))
+      if (command === 'integration_live_snapshot')
+        return Promise.resolve(
+          toLiveSnapshot({ accounts: [], diagnostic } as IntegrationSnapshot),
+        )
+      if (command === 'market_snapshot') return Promise.resolve({})
+      return Promise.resolve(null)
+    })
+
+    render()
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve()
+    })
+
+    expect(invokeMock.mock.calls.some(([command]) => command === 'set_interface_scale')).toBe(false)
+    act(() => useAppStore.getState().setPage('Configurações'))
+    const compactScale = host!.querySelector<HTMLButtonElement>(
+      '.interface-scale-options button[aria-pressed="false"]:last-child',
+    )
+    expect(compactScale).not.toBeNull()
+    act(() => compactScale!.click())
+    await act(async () => {
+      for (let index = 0; index < 4; index += 1) await Promise.resolve()
+    })
+    expect(invokeMock.mock.calls.some(([command, payload]) =>
+      command === 'set_interface_scale' && payload?.scale === '75',
+    )).toBe(true)
+  })
+
   it('keeps Settings focused on application behavior without the Community card', () => {
     act(() => useAppStore.getState().setPage('Configurações'))
     const host = render()
@@ -225,6 +268,8 @@ describe('Pokeidle Manager UI', () => {
     expect(host.querySelector('.community-project-card')).toBeNull()
     expect(host.textContent).not.toContain('PROJETO OPEN SOURCE')
     expect(host.textContent).toContain('Contas simultâneas')
+    expect(host.textContent).toContain('Escala da interface')
+    expect(host.textContent).toContain('Ajusta o tamanho sem mudar a organização do Manager.')
     expect(host.textContent).toContain('Minimizar para bandeja')
     expect(host.textContent).toContain('Modo Demonstração')
     expect(host.textContent).toContain('Modo Desenvolvedor')
@@ -234,6 +279,12 @@ describe('Pokeidle Manager UI', () => {
     expect(settingsContent?.tabIndex).toBe(0)
     expect(host.querySelector('input[type="password"]')).toBeNull()
     expect([...host.querySelectorAll('button')].some((button) => /ativar licença|remover licença/i.test(button.textContent ?? ''))).toBe(false)
+    const scaleButtons = host.querySelectorAll<HTMLButtonElement>('.interface-scale-options button')
+    expect(scaleButtons).toHaveLength(5)
+    expect(scaleButtons[0].getAttribute('aria-pressed')).toBe('true')
+    act(() => scaleButtons[4].click())
+    expect(useAppStore.getState().settings.interfaceScale).toBe('75')
+    expect(scaleButtons[4].getAttribute('aria-pressed')).toBe('true')
   })
 
   it('opens the single Community card from its local sidebar icon and route', () => {
@@ -301,7 +352,7 @@ describe('Pokeidle Manager UI', () => {
     expect(host.textContent).toContain('Dashboard')
     expect(host.textContent).toContain('Carregando contas persistidas...')
   })
-  it.each(['Dashboard', 'Automações', 'Inventários', 'Mercado', 'Configurações', 'Comunidade'] as const)(
+  it.each(['Dashboard', 'Automações', 'Inventários', 'Mercado', 'Lives', 'Configurações', 'Comunidade'] as const)(
     'uses the shared CSS title plaque on the %s tab',
     (page) => {
       act(() => useAppStore.getState().setPage(page))
@@ -475,6 +526,148 @@ describe('Pokeidle Manager UI', () => {
     expect(host.querySelector('.market-history-virtualizer')).not.toBeNull()
     act(() => useAppStore.setState({ ui: { ...useAppStore.getState().ui, page: 'Dashboard' } }))
   })
+  it('shows current market price states beside each automatic purchase limit', () => {
+    const now = Date.now()
+    const rule = (id: string, itemId: number, currency: 'gold' | 'orb') => ({
+      id,
+      accountId: mockAccounts[0].id,
+      targetType: 'item' as const,
+      itemId,
+      enabled: true,
+      currency,
+      maxPrice: 15_000,
+      quantity: 0,
+      budget: 0,
+      minimumBalance: 0,
+      spent: 0,
+      purchasedQuantity: 0,
+    })
+    act(() => {
+      useAppStore.getState().setSetting('mockMode', true)
+      useAppStore.getState().setPage('Mercado')
+      useMarketStore.getState().setSnapshot({
+        version: 11,
+        readerAccountId: 'reader',
+        readerStatus: 'Coleta atualizada',
+        lastMarketError: null,
+        lastUpdatedAt: now,
+        summaries: [
+          {
+            itemId: 200,
+            listings: 2,
+            units: 5,
+            minGold: 12_450,
+            minOrb: null,
+            minGoldKnown: true,
+            minOrbKnown: true,
+            observedAt: now,
+          },
+          {
+            itemId: 201,
+            listings: 0,
+            units: 0,
+            minGold: null,
+            minOrb: null,
+            minGoldKnown: true,
+            minOrbKnown: true,
+            observedAt: now,
+          },
+          {
+            itemId: 202,
+            listings: 1,
+            units: 1,
+            minGold: 10_000,
+            minOrb: null,
+            minGoldKnown: true,
+            minOrbKnown: true,
+            observedAt: now - 90_001,
+          },
+        ],
+        itemMetadata: [],
+        rules: [
+          rule('gold-current', 200, 'gold'),
+          rule('orb-none', 201, 'orb'),
+          rule('gold-stale', 202, 'gold'),
+          rule('not-loaded', 203, 'gold'),
+        ],
+        purchases: [],
+        purchaseHistoryTruncated: false,
+        historyStatus: 'Histórico atualizado',
+        historyLastUpdatedAt: now,
+        recentTransactions: [],
+        topItemSales: [],
+        transactionHistoryConfirmed: true,
+      })
+    })
+
+    const host = render()
+    const prices = [...host.querySelectorAll<HTMLElement>('.market-current-price-value')]
+    expect(prices[0].textContent).toContain('12.450')
+    expect(prices[1].textContent).toContain('Sem oferta')
+    expect(prices[2].textContent).toContain('Desatualizado')
+    expect(prices[3].textContent).toContain('Ainda não carregado')
+  })
+  it('keeps the current minimum-price hint inside the input and follows item currency', () => {
+    const now = Date.now()
+    act(() => {
+      useAppStore.getState().setSetting('mockMode', true)
+      useAppStore.getState().setPage('Mercado')
+      useMarketStore.getState().setSnapshot({
+        version: 12,
+        readerAccountId: 'reader',
+        readerStatus: 'Coleta atualizada',
+        lastMarketError: null,
+        lastUpdatedAt: now,
+        summaries: [
+          {
+            itemId: 200,
+            listings: 2,
+            units: 3,
+            minGold: 12_450,
+            minOrb: 9,
+            minGoldKnown: true,
+            minOrbKnown: true,
+            observedAt: now,
+          },
+        ],
+        itemMetadata: [],
+        rules: [],
+        purchases: [],
+        purchaseHistoryTruncated: false,
+        historyStatus: 'Histórico atualizado',
+        historyLastUpdatedAt: now,
+        recentTransactions: [],
+        topItemSales: [],
+        transactionHistoryConfirmed: true,
+      })
+    })
+
+    const host = render()
+    const itemInput = host.querySelector<HTMLInputElement>('.market-item-picker input')!
+    act(() => itemInput.focus())
+    const itemOption = [...host.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(
+      (option) => option.textContent?.includes('Item #200'),
+    )!
+    act(() => itemOption.click())
+
+    const priceInput = host.querySelector<HTMLInputElement>(
+      '.market-rule-main-fields input[aria-describedby="market-min-current-hint"]',
+    )!
+    const helper = host.querySelector<HTMLElement>('#market-min-current-hint')!
+    expect(helper.parentElement).toBe(priceInput.parentElement)
+    expect(helper.nextElementSibling).toBe(priceInput)
+    expect(priceInput.getAttribute('aria-describedby')).toBe('market-min-current-hint')
+    expect(helper.textContent).toContain('Menor atual: 12.450 Gold')
+
+    const currencySelect = host.querySelectorAll<HTMLSelectElement>(
+      '.market-rule-main-fields select',
+    )[1]
+    act(() => {
+      currencySelect.value = 'orb'
+      currencySelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(helper.textContent).toContain('Menor atual: 9 Gemas')
+  })
   it('keeps the last market snapshot visible after leaving and returning to the tab', () => {
     const snapshot: MarketSnapshot = {
       version: 10,
@@ -570,6 +763,7 @@ describe('Pokeidle Manager UI', () => {
           minimizeToTray: true,
           gameUrl: 'https://pokeidle.io/app',
           startupBrowserConcurrency: 1,
+          interfaceScale: 'auto',
         })
       if (command === 'integration_live_snapshot')
         return Promise.resolve(toLiveSnapshot({
@@ -661,7 +855,7 @@ describe('Pokeidle Manager UI', () => {
 
     expect(host.querySelector('.shared-page-header-copy .eyebrow')).toBeNull()
     expect(host.querySelector('.brand .sidebar-brand-art')?.getAttribute('alt')).toBe('Pokeidle Manager')
-    expect(host.querySelectorAll('nav .sidebar-nav-icon img')).toHaveLength(7)
+    expect(host.querySelectorAll('nav .sidebar-nav-icon img')).toHaveLength(8)
     expect(host.textContent).not.toContain('Sua farm em uma só visão.')
     expect(accountCard.querySelector('.premium-hp-row')?.textContent).toContain('%')
     expect(accountCard.querySelector('.premium-hp-row small')).toBeNull()
@@ -883,6 +1077,105 @@ describe('Pokeidle Manager UI', () => {
     expect(
       [...host.querySelectorAll('.detail-premium-card h2')].map((heading) => heading.textContent),
     ).not.toContain('Inventário')
+  })
+  it('shows trainer level separately from the active Pokémon level', () => {
+    const account = {
+      ...mockAccounts[0],
+      id: 'trainer-level-regression',
+      trainerLevel: 523,
+      level: 227,
+      pokemon: 'Pikachu',
+      activePokemon: {
+        id: 'active-pikachu',
+        name: 'Pikachu',
+        level: 227,
+        types: ['ELECTRIC'],
+      },
+    }
+    act(() => {
+      useAppStore.getState().setSetting('mockMode', true)
+      useAppStore.setState((state) => ({
+        mock: { ...state.mock, accounts: [account] },
+        ui: { ...state.ui, detailAccountId: account.id },
+      }))
+    })
+
+    const host = render()
+    const accountLevel = host.querySelector('.detail-account-card .detail-account-stat')!
+    expect(accountLevel.querySelector('small')?.textContent).toBe('Nível do treinador')
+    expect(accountLevel.querySelector('strong')?.textContent).toBe('523')
+    expect(host.querySelector('.detail-pokemon-overview p')?.textContent).toBe('Nv. 227')
+  })
+  it('switches every Dashboard card to shared session stats without extra requests', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-13T12:00:05.000Z'))
+    const sessionAccount = {
+      ...mockAccounts[0],
+      id: 'dashboard-session-a',
+      nick: 'Sessão A',
+      huntSession: {
+        huntSlug: 'ancient_pupitar',
+        startedAtMs: Date.parse('2026-10-13T12:00:00.000Z'),
+        kills: 0,
+        captures: 0,
+        xpObtained: 0,
+        trainerXp: 0,
+        pokemonXp: 0,
+        goldCombat: 0,
+        goldAutoSale: 0,
+        drops: { 'Bronze Boss Token': 3, 'Fragmento de Chave': 4 },
+        ballsUsed: {},
+        shiniesSeen: 2,
+        shiniesCaptured: 1,
+      },
+    }
+    const emptySessionAccount = {
+      ...mockAccounts[1],
+      id: 'dashboard-session-b',
+      nick: 'Sessão B',
+      huntSession: null,
+    }
+    act(() => {
+      useAppStore.getState().setSetting('mockMode', true)
+      useAppStore.setState((state) => ({
+        mock: { ...state.mock, accounts: [sessionAccount, emptySessionAccount] },
+      }))
+    })
+    const host = render()
+    const buttons = host.querySelectorAll<HTMLButtonElement>('.dashboard-view-toggle button')
+    expect(buttons).toHaveLength(2)
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('true')
+    expect(host.querySelectorAll('.dashboard-session-body')).toHaveLength(0)
+    const callsBeforeToggle = invokeMock.mock.calls.length
+
+    act(() => buttons[1].click())
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('false')
+    expect(buttons[1].getAttribute('aria-pressed')).toBe('true')
+    expect(host.querySelectorAll('.dashboard-session-body')).toHaveLength(2)
+    expect(host.textContent).toContain('Tempo da sessão')
+    expect(host.textContent).toContain('Boss Token')
+    expect(host.textContent).toContain('Shinies vistos')
+    expect(host.textContent).toContain('00:05')
+    expect(host.querySelectorAll('.premium-account-header')).toHaveLength(2)
+    const sessionDrops = host.querySelectorAll('.dashboard-session-drop')
+    expect(sessionDrops).toHaveLength(8)
+    expect(
+      [...host.querySelectorAll<HTMLElement>('.dashboard-session-drop-sprite')].map((sprite) =>
+        sprite.getAttribute('data-has-drop'),
+      ),
+    ).toEqual(['true', 'true', 'false', 'false', 'false', 'false', 'false', 'false'])
+    expect(
+      [...host.querySelectorAll<HTMLElement>('.dashboard-session-drop-sprite')].every(
+        (sprite) => sprite.childElementCount === 1,
+      ),
+    ).toBe(true)
+
+    act(() => vi.advanceTimersByTime(2000))
+    expect(host.textContent).toContain('00:07')
+    act(() => buttons[0].click())
+    expect(host.querySelectorAll('.dashboard-session-body')).toHaveLength(0)
+    expect(host.querySelectorAll('.premium-account-body')).toHaveLength(2)
+    expect(invokeMock.mock.calls).toHaveLength(callsBeforeToggle)
   })
   it('keeps real data isolated when the demonstration state is discarded', () => {
     const realAccount = { ...mockAccounts[0], id: 'real-1', nick: 'Conta Real' }

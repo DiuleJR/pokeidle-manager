@@ -1,0 +1,46 @@
+/* Desktop pages keep their canonical layout; the UI scale is the primary
+   way to fit notebook windows. Keep only local overflow and extreme-width
+   safeguards here. */
+@media (max-width: 1350px) {
+  /* Dense market tables retain their columns and scroll inside their panel. */
+  .market-page .market-table-scroll,
+  .market-page .market-purchase-history {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Keep the desktop shell from switching to phone-style horizontal nav. */
+  .app-shell {
+    flex-direction: row;
+  }
+
+  .app-shell > aside {
+    flex: 0 0 176px;
+    width: 176px;
+  }
+
+  .app-shell nav {
+    width: 100%;
+    display: grid;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .app-shell nav button {
+    white-space: normal;
+  }
+
+  /* At truly narrow widths, prefer a local vertical stack to clipped cards. */
+  .dashboard .account-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    overflow-y: auto;
+  }
+
+  .dashboard .totals-five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -128,6 +128,12 @@ pub struct MarketSummary {
     pub units: u64,
     pub min_gold: Option<u64>,
     pub min_orb: Option<u64>,
+    /// Whether the response explicitly included a gold minimum (including null).
+    pub min_gold_known: bool,
+    /// Whether the response explicitly included an orb minimum (including null).
+    pub min_orb_known: bool,
+    /// Time this item summary was last observed from the live market response.
+    pub observed_at: u64,
 }
 
 /// Authoritative visual metadata observed in a `market.item` response.
@@ -1482,11 +1488,22 @@ impl MarketRuntime {
                 units: raw.get("unidades").and_then(Value::as_u64).unwrap_or(0),
                 min_gold: raw.get("minGold").and_then(Value::as_u64),
                 min_orb: raw.get("minOrb").and_then(Value::as_u64),
+                min_gold_known: raw.get("minGold").is_some(),
+                min_orb_known: raw.get("minOrb").is_some(),
+                observed_at: now,
             };
-            if state.summaries.get(&item_id) != Some(&summary) {
+            let values_changed = state.summaries.get(&item_id).is_none_or(|previous| {
+                previous.listings != summary.listings
+                    || previous.units != summary.units
+                    || previous.min_gold != summary.min_gold
+                    || previous.min_orb != summary.min_orb
+                    || previous.min_gold_known != summary.min_gold_known
+                    || previous.min_orb_known != summary.min_orb_known
+            });
+            if values_changed {
                 changed.push(summary.clone());
-                state.summaries.insert(item_id, summary);
             }
+            state.summaries.insert(item_id, summary);
         }
         state.last_updated_at = Some(now);
         state.reader_status = "Coleta atualizada".into();
@@ -3136,6 +3153,9 @@ mod tests {
                         units: item_id,
                         min_gold: (item_id % 2 == 0).then_some(10_000 + item_id),
                         min_orb: (item_id % 2 == 1).then_some(2),
+                        min_gold_known: true,
+                        min_orb_known: true,
+                        observed_at: now_ms(),
                     },
                 );
             }
@@ -3319,6 +3339,34 @@ mod tests {
         );
         assert!(runtime.state.lock().summaries.is_empty());
         assert!(runtime.state.lock().last_market_response_at.is_none());
+    }
+
+    #[test]
+    fn market_summary_tracks_item_observation_and_explicit_price_fields() {
+        let runtime = MarketRuntime::new(
+            AccountManager::default(),
+            Arc::new(Mutex::new(Connection::open_in_memory().unwrap())),
+        );
+        runtime.state.lock().reader_account_id = Some("reader".into());
+        let response = serde_json::json!({
+            "70": { "anuncios": 0, "unidades": 0, "minGold": null },
+            "71": { "anuncios": 1, "unidades": 2, "minGold": 1250, "minOrb": null }
+        });
+
+        runtime.process_summaries("reader", Some(&response));
+        let first = runtime.state.lock().summaries.get(&70).unwrap().clone();
+        assert!(first.min_gold_known);
+        assert!(!first.min_orb_known);
+        assert_eq!(first.min_gold, None);
+        assert_eq!(first.listings, 0);
+        let before = runtime.state.lock().summaries.get(&71).unwrap().observed_at;
+
+        std::thread::sleep(Duration::from_millis(2));
+        runtime.process_summaries("reader", Some(&response));
+        let state = runtime.state.lock();
+        assert!(state.summaries.get(&71).unwrap().observed_at > before);
+        assert!(state.summaries.get(&71).unwrap().min_gold_known);
+        assert!(state.summaries.get(&71).unwrap().min_orb_known);
     }
 
     fn seed_in_flight_candidate(runtime: &MarketRuntime, status: &str) {

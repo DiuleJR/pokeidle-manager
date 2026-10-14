@@ -1,6 +1,7 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { CustomTitleBar } from './components/CustomTitleBar'
 import { Badge, Button, Card, EmptyState, Switch } from './components/primitives'
 import { CommunityProjectCard } from './components/CommunityProjectCard'
@@ -13,6 +14,9 @@ import { formatHuntElapsed } from './dashboard-time'
 import { bonusMultiplier } from './hunts/calculator'
 import { POKEMON_GRID_ROW_HEIGHT, pokemonGridWindow } from './inventory/virtual-grid'
 import { WhereToHunt } from './hunts/WhereToHunt'
+import { LivesPage } from './lives/LivesPage'
+import { kickChannelUrl, twitchChannelUrl } from './lives/urls'
+import { emptyLiveSnapshot } from './lives/types'
 import browserModeIcon from './assets/pokeidle-theme/backgrounds/icon-browser.png'
 import backgroundModeIcon from './assets/pokeidle-theme/backgrounds/icon-background.png'
 import huntIcon from './assets/pokeidle-theme/backgrounds/icon-hunt.png'
@@ -36,6 +40,7 @@ import menuHuntIcon from './assets/pokeidle-theme/backgrounds/menu-hunt.png'
 import menuAutomationIcon from './assets/pokeidle-theme/backgrounds/menu-automation.png'
 import menuInventoryIcon from './assets/pokeidle-theme/backgrounds/menu-inventory.png'
 import menuMarketIcon from './assets/pokeidle-theme/backgrounds/menu-market.png'
+import livesNavIcon from './assets/ui-icons/live-icon.png'
 import menuSettingsIcon from './assets/pokeidle-theme/backgrounds/menu-settings.png'
 import menuCommunityIcon from './assets/pokeidle-theme/backgrounds/menu-community.png'
 import {
@@ -47,10 +52,12 @@ import {
 } from './inventory/selectors'
 import { selectVisibleAccounts, useAppStore } from './stores/app-store'
 import { useMarketStore } from './stores/market-store'
+import { currentMarketPrice } from './market-price'
 import type {
   AccountView,
   AutomationKind,
   DepotPokemon,
+  InterfaceScale,
   InventoryCategory,
   InventoryItem,
   MarketCurrency,
@@ -74,6 +81,7 @@ const pages: Page[] = [
   'Automações',
   'Inventários',
   'Mercado',
+  'Lives',
   'Configurações',
   'Comunidade',
 ]
@@ -182,6 +190,7 @@ const sidebarNavIcons: Record<Page, string> = {
   Automações: menuAutomationIcon,
   Inventários: menuInventoryIcon,
   Mercado: menuMarketIcon,
+  Lives: livesNavIcon,
   'Onde Caçar': menuHuntIcon,
   Configurações: menuSettingsIcon,
   Comunidade: menuCommunityIcon,
@@ -229,6 +238,50 @@ const format = new Intl.NumberFormat('pt-BR')
 const percentFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 const MARKET_SNAPSHOT_REFRESH_MS = 10_000
 const MARKET_HISTORY_ROW_HEIGHT = 60
+const RARE_SESSION_DROPS = [
+  { label: 'Boss Token', match: ['boss token'] },
+  { label: 'Chave', match: ['chave', 'key'] },
+  { label: 'Shiny Stone', match: ['shiny stone'] },
+  { label: 'Bicicleta', match: ['bicicleta', 'bicycle'] },
+] as const
+
+const normalizeDropName = (name: string) =>
+  name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+const rareSessionDropQuantity = (drops: Record<string, number> | undefined, match: readonly string[]) =>
+  Object.entries(drops ?? {}).reduce((total, [name, count]) => {
+    const normalizedName = normalizeDropName(name)
+    return match.some((term) => normalizedName.includes(term)) ? total + count : total
+  }, 0)
+
+function rareSessionDropItem(
+  label: string,
+  match: readonly string[],
+  quantity: number,
+  catalog: GameItemCatalog,
+): InventoryItem | null {
+  const catalogItem = Object.values(catalog.items).find((item) => {
+    const normalizedName = normalizeDropName(item.name)
+    return match.some((term) => normalizedName.includes(term)) && item.assetPath
+  })
+  const fallbackAssetKey =
+    label === 'Chave' ? '70011' : label === 'Shiny Stone' ? '70012' : label === 'Bicicleta' ? '70013' : null
+  const assetKey = catalogItem ? String(catalogItem.id) : fallbackAssetKey
+  return assetKey
+    ? { id: assetKey, assetKey, name: label, quantity, category: 'other' }
+    : null
+}
+
+const marketPriceLabel = (current: ReturnType<typeof currentMarketPrice>) => {
+  if (current.state === 'available') return format.format(current.price)
+  if (current.state === 'stale')
+    return current.hasData && current.price !== null
+      ? `Desatualizado · ${format.format(current.price)}`
+      : 'Desatualizado'
+  if (current.state === 'no-offer') return 'Sem oferta'
+  if (current.state === 'unknown') return 'Sem dado'
+  return 'Ainda não carregado'
+}
 const startupDebug = import.meta.env.DEV && import.meta.env.MODE !== 'test'
 const statusFor = (status: AccountView['status']) =>
   ({
@@ -393,10 +446,12 @@ function AccountCard({
   account,
   catalog,
   nowMs,
+  viewMode,
 }: {
   account: AccountView
   catalog: GameItemCatalog
   nowMs: number
+  viewMode: 'summary' | 'session'
 }) {
   const open = useAppStore((state) => state.openAccountDetail)
   const hp = account.maxHp ? Math.round((account.hp / account.maxHp) * 100) : 0
@@ -405,6 +460,18 @@ function AccountCard({
   const ball = selectedItemAsInventory(account, 'ball')
   const huntElapsed = formatHuntElapsed(account.huntStartedAtMs, nowMs)
   const totalXpBonusPercent = Math.max(0, (bonusMultiplier(account, true) - 1) * 100)
+  const rareDropGroups = useMemo(
+    () =>
+      RARE_SESSION_DROPS.map(({ label, match }) => {
+        const quantity = rareSessionDropQuantity(account.huntSession?.drops, match)
+        return {
+          label,
+          quantity,
+          item: rareSessionDropItem(label, match, quantity, catalog),
+        }
+      }),
+    [account.huntSession?.drops, catalog],
+  )
   const activeXpBonusIcons = [
     { key: 'vip', label: 'VIP', active: Boolean(account.vip), icon: vipIcon },
     {
@@ -476,66 +543,100 @@ function AccountCard({
           {modeFor(account.mode)}
         </span>
       </header>
-      <div className="premium-account-body">
-        <div className="account-pokemon-visual">
-          {activePokemon ? (
-            <PokemonAsset pokemon={activePokemon} catalog={catalog} size={160} />
-          ) : (
-            <span className="account-pokemon-placeholder">?</span>
-          )}
+      {viewMode === 'summary' ? (
+        <div className="premium-account-body">
+          <div className="account-pokemon-visual">
+            {activePokemon ? (
+              <PokemonAsset pokemon={activePokemon} catalog={catalog} size={160} />
+            ) : (
+              <span className="account-pokemon-placeholder">?</span>
+            )}
+          </div>
+          <div className="premium-account-details">
+            <div className="pokemon">
+              <strong>{account.pokemon}</strong>
+              <span>Nv. {account.activePokemon?.level ?? '—'}</span>
+            </div>
+            <div className="hp-row premium-hp-row">
+              <span>HP</span>
+              <div className="progress">
+                <i style={{ width: `${hp}%` }} />
+              </div>
+              <b>{hp}%</b>
+            </div>
+            <div className="metric-grid premium-metric-grid">
+              <div className="account-stat account-stat-xp">
+                <span className="account-stat-icon">
+                  <DashboardMetricIcon kind="xp" />
+                </span>
+                <span>
+                  <small>XP/h</small>
+                  <strong>{format.format(account.xpPerHour)}</strong>
+                </span>
+              </div>
+              <div className="account-stat account-stat-gold">
+                <span className="account-stat-icon">
+                  <GameGoldIcon />
+                </span>
+                <span>
+                  <small>Gold/h</small>
+                  <strong>{format.format(account.goldPerHour)}</strong>
+                </span>
+              </div>
+              <div className="account-stat account-stat-item">
+                <span className="account-combat-icon">
+                  {potion ? <ItemAsset item={potion} catalog={catalog} compact /> : '—'}
+                </span>
+                <span>
+                  <small>{account.potionName ?? 'Potions'}</small>
+                  <strong>{format.format(account.potions)}</strong>
+                </span>
+              </div>
+              <div className="account-stat account-stat-item">
+                <span className="account-combat-icon">
+                  {ball ? <ItemAsset item={ball} catalog={catalog} compact /> : '—'}
+                </span>
+                <span>
+                  <small>{account.ballName ?? 'Balls'}</small>
+                  <strong>{format.format(account.balls)}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="premium-account-details">
-          <div className="pokemon">
-            <strong>{account.pokemon}</strong>
-            <span>Nv. {account.level || '—'}</span>
+      ) : (
+        <div className="dashboard-session-body" aria-label={`Estatísticas da sessão de ${account.nick}`}>
+          <div className="dashboard-session-time">
+            <span>Tempo da sessão</span>
+            <strong>
+              {account.huntSession
+                ? (formatHuntElapsed(account.huntSession.startedAtMs, nowMs) ?? '00:00')
+                : '—'}
+            </strong>
           </div>
-          <div className="hp-row premium-hp-row">
-            <span>HP</span>
-            <div className="progress">
-              <i style={{ width: `${hp}%` }} />
-            </div>
-            <b>{hp}%</b>
+          <div className="dashboard-session-drops" aria-label="Drops raros da sessão">
+            {rareDropGroups.map(({ label, item, quantity }) => (
+              <DashboardSessionDrop
+                key={label}
+                label={label}
+                item={item}
+                quantity={quantity}
+                catalog={catalog}
+              />
+            ))}
           </div>
-          <div className="metric-grid premium-metric-grid">
-            <div className="account-stat account-stat-xp">
-              <span className="account-stat-icon">
-                <DashboardMetricIcon kind="xp" />
-              </span>
-              <span>
-                <small>XP/h</small>
-                <strong>{format.format(account.xpPerHour)}</strong>
-              </span>
-            </div>
-            <div className="account-stat account-stat-gold">
-              <span className="account-stat-icon">
-                <GameGoldIcon />
-              </span>
-              <span>
-                <small>Gold/h</small>
-                <strong>{format.format(account.goldPerHour)}</strong>
-              </span>
-            </div>
-            <div className="account-stat account-stat-item">
-              <span className="account-combat-icon">
-                {potion ? <ItemAsset item={potion} catalog={catalog} compact /> : '—'}
-              </span>
-              <span>
-                <small>{account.potionName ?? 'Potions'}</small>
-                <strong>{format.format(account.potions)}</strong>
-              </span>
-            </div>
-            <div className="account-stat account-stat-item">
-              <span className="account-combat-icon">
-                {ball ? <ItemAsset item={ball} catalog={catalog} compact /> : '—'}
-              </span>
-              <span>
-                <small>{account.ballName ?? 'Balls'}</small>
-                <strong>{format.format(account.balls)}</strong>
-              </span>
-            </div>
+          <div className="dashboard-session-shinies" aria-label="Shinies da sessão">
+            <span>
+              <small>Shinies vistos</small>
+              <strong>{format.format(account.huntSession?.shiniesSeen ?? 0)}</strong>
+            </span>
+            <span>
+              <small>Shinies capturados</small>
+              <strong>{format.format(account.huntSession?.shiniesCaptured ?? 0)}</strong>
+            </span>
           </div>
         </div>
-      </div>
+      )}
       <footer className="premium-account-footer">
         <div className="premium-account-hunt">
           <img src={huntIcon} className="premium-account-hunt-icon" alt="" aria-hidden="true" />
@@ -543,7 +644,7 @@ function AccountCard({
             <>
               <span>Hunt:</span>
               <b>{account.hunt}</b>
-              {huntElapsed && (
+              {huntElapsed && viewMode === 'summary' && (
                 <span
                   className="premium-account-hunt-timer"
                   aria-label={`Tempo desde a seleção da hunt: ${huntElapsed}`}
@@ -584,6 +685,32 @@ function AccountCard({
     </Card>
   )
 }
+
+const DashboardSessionDrop = memo(function DashboardSessionDrop({
+  label,
+  item,
+  quantity,
+  catalog,
+}: {
+  label: string
+  item: InventoryItem | null
+  quantity: number
+  catalog: GameItemCatalog
+}) {
+  return (
+    <span
+      className="dashboard-session-drop"
+      role="group"
+      aria-label={`${label}: ${format.format(quantity)}`}
+    >
+      <span className="dashboard-session-drop-sprite" data-has-drop={quantity > 0} aria-hidden="true">
+        {item ? <ItemAsset item={item} catalog={catalog} compact /> : <span>✦</span>}
+      </span>
+      <small>{label}</small>
+      <strong>{format.format(quantity)}</strong>
+    </span>
+  )
+})
 
 function IntegrationPanel({ diagnostic }: { diagnostic: IntegrationDiagnostic }) {
   const steps = [
@@ -664,8 +791,11 @@ function Dashboard({
   const accounts = useAppStore(selectVisibleAccounts)
   const { settings, addMockAccounts } = useAppStore()
   const catalog = useGameItemCatalog()
+  const [viewMode, setViewMode] = useState<'summary' | 'session'>('summary')
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const hasHuntTimer = accounts.some((account) => account.huntStartedAtMs != null)
+  const hasHuntTimer = accounts.some(
+    (account) => account.huntStartedAtMs != null || account.huntSession?.startedAtMs != null,
+  )
   useEffect(() => {
     if (!hasHuntTimer) return
     setNowMs(Date.now())
@@ -731,6 +861,22 @@ function Dashboard({
         title="Dashboard"
         actions={
           <div className="dashboard-actions">
+            <div className="dashboard-view-toggle" role="group" aria-label="Visualização do Dashboard">
+              <button
+                type="button"
+                aria-pressed={viewMode === 'summary'}
+                onClick={() => setViewMode('summary')}
+              >
+                Resumo
+              </button>
+              <button
+                type="button"
+                aria-pressed={viewMode === 'session'}
+                onClick={() => setViewMode('session')}
+              >
+                Sessão
+              </button>
+            </div>
             <Button
               onClick={settings.mockMode ? addMockAccounts : onStartReal}
               disabled={addAccountBusy || (!settings.mockMode && accounts.length >= 4)}
@@ -767,7 +913,13 @@ function Dashboard({
       </div>
       <div className="account-grid">
         {accounts.map((account) => (
-          <AccountCard key={account.id} account={account} catalog={catalog} nowMs={nowMs} />
+          <AccountCard
+            key={account.id}
+            account={account}
+            catalog={catalog}
+            nowMs={nowMs}
+            viewMode={viewMode}
+          />
         ))}
       </div>
     </main>
@@ -925,27 +1077,12 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
     ? Math.round((account.captures * 3600) / account.onlineSeconds)
     : 0
   const huntSession = account.huntSession
-  const rareDropGroups = [
-    { label: 'Boss Token', match: ['boss token'], fallbackAssetKey: undefined },
-    { label: 'Chave', match: ['chave', 'key'], fallbackAssetKey: '70011' },
-    { label: 'Shiny Stone', match: ['shiny stone'], fallbackAssetKey: '70012' },
-    { label: 'Bicicleta', match: ['bicicleta', 'bicycle'], fallbackAssetKey: '70013' },
-  ].map(({ label, match, fallbackAssetKey }) => {
-    const quantity = Object.entries(huntSession?.drops ?? {}).reduce((total, [name, count]) => {
-      const normalizedName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      return match.some((term) => normalizedName.includes(term)) ? total + count : total
-    }, 0)
-    const catalogItem = Object.values(catalog.items).find((item) => {
-      const normalizedName = item.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      return match.some((term) => normalizedName.includes(term)) && item.assetPath
-    })
-    const assetKey = catalogItem ? String(catalogItem.id) : fallbackAssetKey
+  const rareDropGroups = RARE_SESSION_DROPS.map(({ label, match }) => {
+    const quantity = rareSessionDropQuantity(huntSession?.drops, match)
     return {
       label,
       quantity,
-      item: assetKey
-        ? { id: assetKey, assetKey, name: label, quantity, category: 'other' as const }
-        : null,
+      item: rareSessionDropItem(label, match, quantity, catalog),
     }
   })
   const vipLabel =
@@ -1047,8 +1184,8 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
                 <div className="detail-account-stat">
                   <AccountInfoIcon kind="level" />
                   <span>
-                    <small>Nível</small>
-                    <strong>{account.level}</strong>
+                    <small>Nível do treinador</small>
+                    <strong>{account.trainerLevel ?? '—'}</strong>
                   </span>
                 </div>
                 <div className="detail-account-stat detail-account-stat-gold">
@@ -1109,7 +1246,7 @@ function AccountDetail({ account, onBrowserAction, browserActionBusy }: {
                 </div>
                 <div>
                   <h3>{account.pokemon}</h3>
-                  <p>Nv. {account.level}</p>
+                  <p>Nv. {account.activePokemon?.level ?? '—'}</p>
                   <div className="detail-type-badges">
                     {account.types.map((type) => (
                       <b key={type}>{type}</b>
@@ -2688,6 +2825,10 @@ function Market() {
     () => mergeMarketCatalog(baseCatalog, market?.itemMetadata ?? []),
     [baseCatalog, market?.itemMetadata],
   )
+  const summariesByItemId = useMemo(
+    () => new Map((market?.summaries ?? []).map((summary) => [summary.itemId, summary])),
+    [market?.summaries],
+  )
   const [currency, setCurrency] = useState<'all' | MarketCurrency>('all')
   const [query, setQuery] = useState('')
   const [itemSearch, setItemSearch] = useState('')
@@ -2767,6 +2908,13 @@ function Market() {
   const selectedDraftItem = draft.itemId
     ? marketItemForId(Number(draft.itemId), catalog)
     : undefined
+  const draftCurrentPrice = selectedDraftItem
+    ? currentMarketPrice(
+        summariesByItemId.get(Number(draft.itemId)),
+        draft.currency,
+        Date.now(),
+      )
+    : null
   const saveRule = (rule: MarketSniperRule) =>
     void invoke('save_market_sniper_rule', { rule })
       .then(refresh)
@@ -3278,11 +3426,22 @@ function Market() {
                 </select>
               </label>
               <label>
+                {draftCurrentPrice && (
+                  <small
+                    id="market-min-current-hint"
+                    className="market-current-price market-current-price-above"
+                    data-state={draftCurrentPrice.state}
+                    aria-live="polite"
+                  >
+                    Menor atual: {marketPriceLabel(draftCurrentPrice)}{draft.currency === 'gold' ? ' Gold' : ' Gemas'}
+                  </small>
+                )}
                 Preço máximo por unidade
                 <input
                   inputMode="numeric"
                   value={draft.maxPrice}
                   placeholder="Ex.: 62.000"
+                  aria-describedby={selectedDraftItem ? 'market-min-current-hint' : undefined}
                   onChange={(event) => setDraft({ ...draft, maxPrice: event.target.value })}
                 />
               </label>
@@ -3348,6 +3507,12 @@ function Market() {
             {(market?.rules ?? []).map((rule) => {
               const item = marketItemForId(rule.itemId, catalog)
               const account = accounts.find((candidate) => candidate.id === rule.accountId)
+              const currentPrice = currentMarketPrice(
+                summariesByItemId.get(rule.itemId),
+                rule.currency,
+                Date.now(),
+              )
+              const currentPriceText = marketPriceLabel(currentPrice)
               const remainingBudget = Math.max(0, rule.budget - rule.spent)
               const budgetProgress =
                 rule.budget > 0 ? Math.min(100, (rule.spent / rule.budget) * 100) : 0
@@ -3372,6 +3537,16 @@ function Market() {
                       <dd>
                         {format.format(rule.maxPrice)}{' '}
                         <small>{rule.currency === 'gold' ? 'Gold' : 'Gemas'}</small>
+                      </dd>
+                    </div>
+                    <div className={`market-current-price-value market-current-price-${currentPrice.state}`}>
+                      <dt>MENOR ATUAL</dt>
+                      <dd>
+                        {currentPriceText}{' '}
+                        {(currentPrice.state === 'available' ||
+                          (currentPrice.state === 'stale' && currentPrice.hasData)) && (
+                          <small>{rule.currency === 'gold' ? 'Gold' : 'Gemas'}</small>
+                        )}
                       </dd>
                     </div>
                     <div>
@@ -3599,6 +3774,13 @@ function PreparingShell() {
 
 function Settings() {
   const { settings, setSetting } = useAppStore()
+  const interfaceScales: Array<{ value: InterfaceScale; label: string; detail: string }> = [
+    { value: 'auto', label: 'Automático', detail: 'Ajusta conforme o espaço disponível' },
+    { value: '100', label: '100%', detail: 'Padrão' },
+    { value: '90', label: '90%', detail: 'Compacto' },
+    { value: '80', label: '80%', detail: 'Notebook' },
+    { value: '75', label: '75%', detail: 'Notebook pequeno' },
+  ]
   const concurrencyProfiles = [
     [1, 'Menor uso de memória'],
     [2, 'Equilibrado'],
@@ -3612,6 +3794,32 @@ function Settings() {
       aria-label="Conteúdo de Configurações"
     >
       <PageHeader title="Configurações" />
+      <Card className="interface-scale-card">
+        <div className="interface-scale-heading">
+          <div>
+            <p className="eyebrow">INTERFACE</p>
+            <h2>Escala da interface</h2>
+          </div>
+          <p>Ajusta o tamanho sem mudar a organização do Manager.</p>
+        </div>
+        <div className="interface-scale-options" role="group" aria-label="Escala da interface">
+          {interfaceScales.map(({ value, label, detail }) => (
+            <button
+              key={value}
+              type="button"
+              className={settings.interfaceScale === value ? 'selected' : ''}
+              aria-pressed={settings.interfaceScale === value}
+              onClick={() => setSetting('interfaceScale', value)}
+            >
+              <strong>{label}</strong>
+              <span>{detail}</span>
+            </button>
+          ))}
+        </div>
+        <p className="interface-scale-note">
+          A escala afeta somente esta janela; o navegador das contas não será alterado.
+        </p>
+      </Card>
       <Card className="startup-concurrency-card">
         <div className="startup-concurrency-heading">
           <div>
@@ -3791,10 +3999,27 @@ function ProtocolInspector() {
   )
 }
 
+function ConnectedLivesPage({ mockMode }: { mockMode: boolean }) {
+  const lives = useAppStore((state) => state.lives)
+  return (
+    <LivesPage
+      snapshot={lives}
+      mockMode={mockMode}
+      onOpenLive={async (platform, identifier) => {
+        const url = platform === 'twitch'
+          ? twitchChannelUrl(identifier)
+          : kickChannelUrl(identifier)
+        if (!url) throw new Error('Endereço da live inválido')
+        await openUrl(url)
+      }}
+    />
+  )
+}
+
 export default function App() {
   const isDesktop = '__TAURI_INTERNALS__' in window
   const { page, detailAccountId } = useAppStore((state) => state.ui),
-    { setPage, settings, advanceMock, hydratePersistedSettings, setRealAccounts } = useAppStore(),
+    { setPage, settings, advanceMock, hydratePersistedSettings, setRealAccounts, setLivesSnapshot } = useAppStore(),
     accounts = useAppStore(selectVisibleAccounts)
   const [diagnostic, setDiagnostic] = useState<IntegrationDiagnostic | null>(null)
   const [browserDialog, setBrowserDialog] = useState<{ intent: BrowserIntent; issue: BrowserIssue; busy: boolean; notice: string | null } | null>(null)
@@ -3811,6 +4036,8 @@ export default function App() {
   }))
   const [hydrationComplete, setHydrationComplete] = useState(false)
   const [persistedSettingsLoaded, setPersistedSettingsLoaded] = useState(false)
+  const settingsSnapshotSucceeded = useRef(false)
+  const lastRequestedInterfaceScale = useRef(settings.interfaceScale)
   const firstRender = useRef(true)
   if (firstRender.current) {
     firstRender.current = false
@@ -3981,9 +4208,12 @@ export default function App() {
       minimizeToTray: boolean
       gameUrl: string
       startupBrowserConcurrency: number
+      interfaceScale: InterfaceScale
     }>('settings_snapshot')
       .then((persisted) => {
         hydratePersistedSettings(persisted)
+        settingsSnapshotSucceeded.current = true
+        lastRequestedInterfaceScale.current = persisted.interfaceScale
         setPersistedSettingsLoaded(true)
         if (startupDebug)
           console.info('[startup] app settings load end', performance.now().toFixed(1))
@@ -3992,6 +4222,7 @@ export default function App() {
   }, [appIsReady, hydratePersistedSettings, isDesktop])
   useEffect(() => {
     if (!isDesktop || !appIsReady || !persistedSettingsLoaded) return
+    if (!settingsSnapshotSucceeded.current) return
     void invoke('save_app_settings', {
       settings: {
         minimizeToTray: settings.minimizeToTray,
@@ -4008,6 +4239,17 @@ export default function App() {
     settings.startupBrowserConcurrency,
   ])
   useEffect(() => {
+    if (!isDesktop || !appIsReady || !persistedSettingsLoaded) return
+    if (
+      !settingsSnapshotSucceeded.current &&
+      settings.interfaceScale === lastRequestedInterfaceScale.current
+    ) return
+    lastRequestedInterfaceScale.current = settings.interfaceScale
+    void invoke('set_interface_scale', { scale: settings.interfaceScale }).catch((error) => {
+      console.warn('[settings] failed to apply interface scale', error)
+    })
+  }, [appIsReady, isDesktop, persistedSettingsLoaded, settings.interfaceScale])
+  useEffect(() => {
     if (!isDesktop || !appIsReady) return
     void invoke('set_protocol_inspector_enabled', { enabled: settings.developerMode })
   }, [appIsReady, isDesktop, settings.developerMode])
@@ -4022,6 +4264,7 @@ export default function App() {
         if (disposed) return
         setDiagnostic(snapshot.diagnostic)
         setRealAccounts(snapshot.accounts.map(accountFromLive))
+        setLivesSnapshot(snapshot.lives ?? emptyLiveSnapshot)
         settlePendingAdd(snapshot, requestSequence)
         if (startupDebug && snapshot.diagnostic.welcomeReceived)
           console.info('[startup] first welcome observed', performance.now().toFixed(1))
@@ -4036,7 +4279,7 @@ export default function App() {
       disposed = true
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [appIsReady, isDesktop, setRealAccounts, settlePendingAdd])
+  }, [appIsReady, isDesktop, setRealAccounts, setLivesSnapshot, settlePendingAdd])
   const runBrowserIntent = async (intent: BrowserIntent, isRetry = false) => {
     if (browserActionLock.current) return
     let keepAddLockUntilSnapshot = false
@@ -4155,6 +4398,8 @@ export default function App() {
     <Market />
   ) : page === 'Onde Caçar' ? (
     <WhereToHunt />
+  ) : page === 'Lives' ? (
+    <ConnectedLivesPage mockMode={settings.mockMode} />
   ) : page === 'Comunidade' ? (
     <Community />
   ) : (

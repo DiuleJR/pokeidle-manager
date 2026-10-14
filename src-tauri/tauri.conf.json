@@ -15,9 +15,12 @@
         "title": "Pokeidle Manager",
         "width": 1440,
         "height": 938,
+        "minWidth": 960,
+        "minHeight": 600,
+        "visible": false,
         "backgroundColor": { "red": 9, "green": 13, "blue": 18, "alpha": 255 },
         "center": true,
-        "resizable": false,
+        "resizable": true,
         "maximizable": false,
         "decorations": false,
         "shadow": true

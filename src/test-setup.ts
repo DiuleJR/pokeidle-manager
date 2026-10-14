@@ -23,6 +23,7 @@ afterEach(() =>
       minimizeToTray: true,
       gameUrl: 'https://pokeidle.io/app',
       startupBrowserConcurrency: 1,
+      interfaceScale: 'auto',
     },
   }),
 )

@@ -4,7 +4,7 @@ use crate::{
     accounts::{AccountManager, BrowserControl},
     connection::{ConnectionBootstrap, ConnectionManager, SessionHeaders},
     domain::AccountRuntimeState,
-    inspector::ProtocolDirection,
+    inspector::{ProtocolDirection, ProtocolTransport},
     logging::sanitize_frame,
     protocol::{Hello, ServerFrame},
 };
@@ -2289,6 +2289,7 @@ fn observe_page_event(
                 accounts.record_protocol_frame(
                     account_id,
                     ProtocolDirection::ClientToServer,
+                    ProtocolTransport::Browser,
                     payload,
                 );
             }
@@ -2346,6 +2347,7 @@ fn observe_page_event(
                     accounts.record_protocol_frame(
                         account_id,
                         ProtocolDirection::ServerToClient,
+                        ProtocolTransport::Browser,
                         payload,
                     );
                 }

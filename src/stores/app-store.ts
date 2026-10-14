@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { HuntReference } from '../hunts/calculator'
 import { mockAccounts } from '../mocks/accounts'
+import { emptyLiveSnapshot, sameLiveSnapshot, type LiveSnapshot } from '../lives/types'
 import type {
   AccountDomain,
   AccountDomainCacheEntry,
@@ -34,13 +35,17 @@ export interface UIState {
 export interface AppState {
   real: RealAccountState
   mock: MockAccountState
+  lives: LiveSnapshot
   whereHuntReference: HuntReference | null
   ui: UIState
   settings: AppSettings
   setPage: (page: Page) => void
   setSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void
   hydratePersistedSettings: (
-    settings: Pick<AppSettings, 'minimizeToTray' | 'gameUrl' | 'startupBrowserConcurrency'>,
+    settings: Pick<
+      AppSettings,
+      'minimizeToTray' | 'gameUrl' | 'startupBrowserConcurrency' | 'interfaceScale'
+    >,
   ) => void
   selectAccounts: (ids: string[]) => void
   setInventoryTab: (tab: UIState['inventoryTab']) => void
@@ -52,6 +57,7 @@ export interface AppState {
   setPotionThreshold: (threshold: number) => void
   addMockAccounts: () => void
   setRealAccounts: (accounts: AccountView[]) => void
+  setLivesSnapshot: (snapshot: LiveSnapshot) => void
   setRealAccountDomain: <D extends AccountDomain>(
     domain: D,
     response: AccountDomainResponse<D>,
@@ -163,6 +169,7 @@ const initialSettings: AppSettings = {
   minimizeToTray: true,
   gameUrl: import.meta.env.VITE_GAME_URL ?? 'https://pokeidle.io/app',
   startupBrowserConcurrency: 1,
+  interfaceScale: 'auto',
 }
 const cloneMockAccounts = () =>
   mockAccounts.map((account) => ({
@@ -181,6 +188,7 @@ export const selectVisibleAccounts = (state: AppState) =>
 export const useAppStore = create<AppState>((set) => ({
   real: { accounts: [], domains: {} },
   mock: { accounts: [], tick: 0 },
+  lives: emptyLiveSnapshot,
   whereHuntReference: null,
   ui: {
     page: 'Dashboard',
@@ -288,6 +296,10 @@ export const useAppStore = create<AppState>((set) => ({
         },
       }
     }),
+  setLivesSnapshot: (snapshot) =>
+    set((state) =>
+      sameLiveSnapshot(state.lives, snapshot) ? state : { lives: snapshot },
+    ),
   setRealAccountDomain: (domain, response) =>
     set((state) => {
       const accountIndex = state.real.accounts.findIndex(
