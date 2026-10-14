@@ -19,6 +19,16 @@ O worker do Mercado usa uma projeção própria com estado de conexão, transpor
 saldos. Assim, consultas recorrentes do Mercado não precisam clonar os depósitos nem os catálogos
 de hunt das contas.
 
+Na aba Onde Caçar, a simulação usa somente hunts cujo slug existe tanto na referência quanto nas
+opções observadas da conta selecionada, quando há interseção. O nível máximo é o nível do treinador
+(`trainerLevel`) e é aplicado antes da simulação de combate; nível do Pokémon ativo não substitui
+esse limite. Se ainda não houver nenhum slug em comum, a interface mantém o fallback do catálogo da
+referência, também limitado ao nível do treinador. Filtros de texto, região e ordenação são aplicados
+depois dos cálculos. A RC3 já filtrava as hunts inelegíveis antes da simulação; a lentidão vinha
+do `useMemo` depender do objeto inteiro da conta, que muda em snapshots frequentes mesmo quando só
+campos irrelevantes variam. A assinatura do cálculo agora acompanha apenas os dados que afetam as
+estimativas, e a região de cada hunt é consultada por um índice de slug. Não foi adicionado polling.
+
 ## Medição validada
 
 Na validação de referência com quatro contas durante 60 minutos, o payload recorrente caiu de
