@@ -6,7 +6,7 @@ Este repositório é o código-fonte oficial da edição comunitária do Pokeidl
 
 ## Download
 
-A versão estável **v0.1.0 ainda não foi publicada**. A versão candidata pública atual e recomendada para testes é **v0.1.0-rc.3 (RC3)**. A RC1 e a RC2 continuam disponíveis apenas para histórico e reprodutibilidade.
+A versão estável **v0.1.0 ainda não foi publicada**. A versão candidata pública atual e recomendada para testes é **v0.1.0-rc.3 (RC3)**. A próxima candidata, **v0.1.0-rc.4 (RC4)**, está em preparação e ainda não está disponível para download. A RC1 e a RC2 continuam disponíveis apenas para histórico e reprodutibilidade.
 
 Baixe o aplicativo exclusivamente pela [página oficial da RC3](https://github.com/DiuleJR/pokeidle-manager/releases/tag/v0.1.0-rc.3) ou pela página de [GitHub Releases](https://github.com/DiuleJR/pokeidle-manager/releases). Para a maioria dos usuários, recomendamos o instalador NSIS:
 
