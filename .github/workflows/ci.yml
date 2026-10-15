@@ -37,3 +37,57 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --no-default-features --features community-build
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --no-default-features --features community-build
+
+  linux-experimental:
+    name: Verificações Linux (experimental)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable toolchain
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+      - name: Instalar dependências do Tauri para Ubuntu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+      - name: Cargo check Linux (baseline)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked --no-default-features --features community-build
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --no-default-features --features community-build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --no-default-features --features community-build
+      - name: Gerar pacotes Linux experimentais
+        run: npx tauri build --bundles deb,appimage -- --locked --no-default-features --features community-build
+      - name: Registrar nomes e tamanhos dos pacotes
+        run: |
+          find src-tauri/target/release/bundle/deb src-tauri/target/release/bundle/appimage \
+            -maxdepth 1 -type f -printf '%p\t%s bytes\n' | sort
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pokeidle-manager-linux-experimental
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
